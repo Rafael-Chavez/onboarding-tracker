@@ -12,20 +12,30 @@ function App() {
   const [onboardings, setOnboardings] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
 
   const addOnboarding = () => {
-    if (selectedEmployee && clientName.trim()) {
+    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
+      // Find existing onboardings for this client to determine session number
+      const clientOnboardings = onboardings.filter(ob => 
+        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
+      )
+      const sessionNumber = clientOnboardings.length + 1
+      
       const newOnboarding = {
         id: Date.now(),
         employeeId: parseInt(selectedEmployee),
         employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
         clientName: clientName.trim(),
+        accountNumber: accountNumber.trim(),
+        sessionNumber,
         date: new Date().toISOString().split('T')[0],
         month: new Date().toISOString().slice(0, 7)
       }
       setOnboardings([...onboardings, newOnboarding])
       setClientName('')
+      setAccountNumber('')
     }
   }
 
@@ -55,7 +65,7 @@ function App() {
         
         <div className="mb-8 p-4 bg-blue-50 rounded-lg">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Onboarding</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <select
               value={selectedEmployee}
               onChange={(e) => setSelectedEmployee(e.target.value)}
@@ -73,14 +83,22 @@ function App() {
               type="text"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
               placeholder="Client name..."
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            
+            <input
+              type="text"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
+              placeholder="Account number..."
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             
             <button
               onClick={addOnboarding}
-              disabled={!selectedEmployee || !clientName.trim()}
+              disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
               className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Add Onboarding
@@ -129,10 +147,18 @@ function App() {
               [...filteredOnboardings].reverse().map(onboarding => (
                 <div
                   key={onboarding.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                  className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg"
                 >
                   <div className="flex-1">
-                    <div className="font-medium text-gray-800">{onboarding.clientName}</div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="font-medium text-gray-800">{onboarding.clientName}</div>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
+                        Session #{onboarding.sessionNumber}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-1">
+                      Account: {onboarding.accountNumber}
+                    </div>
                     <div className="text-sm text-gray-600">
                       by {onboarding.employeeName} • {new Date(onboarding.date).toLocaleDateString()}
                     </div>
