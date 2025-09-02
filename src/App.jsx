@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { GoogleSheetsService } from './services/googleSheets'
 
 function App() {
   const [employees] = useState([
@@ -15,6 +16,7 @@ function App() {
   const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' }) // type: 'success', 'error', ''
 
   const addOnboarding = () => {
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
@@ -92,6 +94,68 @@ function App() {
     return { thisMonth, total }
   }
 
+  const syncToGoogleSheets = async () => {
+    setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets...', type: '' })
+    
+    try {
+      const result = await GoogleSheetsService.syncAllOnboardings(onboardings)
+      
+      if (result.success) {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: `Successfully synced ${result.syncedCount} onboardings to Google Sheets!`, 
+          type: 'success' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
+      } else {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: `Sync failed: ${result.error}`, 
+          type: 'error' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+      }
+    } catch (error) {
+      setSyncStatus({ 
+        isLoading: false, 
+        message: `Sync failed: ${error.message}`, 
+        type: 'error' 
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+    }
+  }
+
+  const testSheetsConnection = async () => {
+    setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
+    
+    try {
+      const result = await GoogleSheetsService.testConnection()
+      
+      if (result.success) {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: 'Google Sheets connection successful!', 
+          type: 'success' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
+      } else {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: `Connection failed: ${result.error}`, 
+          type: 'error' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+      }
+    } catch (error) {
+      setSyncStatus({ 
+        isLoading: false, 
+        message: `Connection test failed: ${error.message}`, 
+        type: 'error' 
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+    }
+  }
+
   const stats = getTotalStats()
 
   return (
@@ -116,49 +180,111 @@ function App() {
               </div>
             </div>
             
-            {/* Add New Onboarding Form */}
-            <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
-              <h3 className="text-white font-medium mb-3">Quick Add</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <select
-                  value={selectedEmployee}
-                  onChange={(e) => setSelectedEmployee(e.target.value)}
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                >
-                  <option value="" className="text-gray-800">Select Employee</option>
-                  {employees.map(employee => (
-                    <option key={employee.id} value={employee.id} className="text-gray-800">
-                      {employee.name}
-                    </option>
-                  ))}
-                </select>
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Add New Onboarding Form */}
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 flex-1">
+                <h3 className="text-white font-medium mb-3">Quick Add</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  >
+                    <option value="" className="text-gray-800">Select Employee</option>
+                    {employees.map(employee => (
+                      <option key={employee.id} value={employee.id} className="text-gray-800">
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Client name..."
+                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  />
+                  
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
+                    placeholder="Account number..."
+                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  />
+                  
+                  <button
+                    onClick={addOnboarding}
+                    disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Google Sheets Sync */}
+              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
+                <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Google Sheets
+                </h3>
                 
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Client name..."
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                />
-                
-                <input
-                  type="text"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
-                  placeholder="Account number..."
-                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                />
-                
-                <button
-                  onClick={addOnboarding}
-                  disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
-                >
-                  Add
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={syncToGoogleSheets}
+                    disabled={syncStatus.isLoading || onboardings.length === 0}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-medium hover:from-green-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-green-500/25"
+                  >
+                    {syncStatus.isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Syncing...
+                      </div>
+                    ) : (
+                      `Sync ${onboardings.length} Records`
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={testSheetsConnection}
+                    disabled={syncStatus.isLoading}
+                    className="px-4 py-1.5 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    Test Connection
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Sync Status Message */}
+            {syncStatus.message && (
+              <div className={`backdrop-blur-sm rounded-lg border p-3 transition-all duration-300 ${
+                syncStatus.type === 'success' 
+                  ? 'bg-green-500/20 border-green-400/30 text-green-100' 
+                  : syncStatus.type === 'error'
+                  ? 'bg-red-500/20 border-red-400/30 text-red-100'
+                  : 'bg-blue-500/20 border-blue-400/30 text-blue-100'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {syncStatus.type === 'success' && (
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {syncStatus.type === 'error' && (
+                    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  )}
+                  <span className="text-sm font-medium">{syncStatus.message}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
