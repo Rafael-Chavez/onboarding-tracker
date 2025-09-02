@@ -2,19 +2,18 @@ import { useState } from 'react'
 
 function App() {
   const [employees] = useState([
-    { id: 1, name: 'Rafael' },
-    { id: 2, name: 'Danreb' },
-    { id: 3, name: 'Jim' },
-    { id: 4, name: 'Marc' },
-    { id: 5, name: 'Steve' }
+    { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
+    { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
+    { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
+    { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
+    { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' }
   ])
   
   const [onboardings, setOnboardings] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState('')
-  const [viewMode, setViewMode] = useState('list') // 'list' or 'calendar'
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
 
   const addOnboarding = () => {
@@ -45,19 +44,6 @@ function App() {
     setOnboardings(onboardings.filter(ob => ob.id !== id))
   }
 
-  const months = [...new Set(onboardings.map(ob => ob.month))].sort().reverse()
-  
-  const filteredOnboardings = selectedMonth 
-    ? onboardings.filter(ob => ob.month === selectedMonth)
-    : onboardings
-
-  const getEmployeeStats = (employeeId) => {
-    const employeeOnboardings = filteredOnboardings.filter(ob => ob.employeeId === employeeId)
-    return employeeOnboardings.length
-  }
-
-  const totalOnboardings = filteredOnboardings.length
-
   // Calendar helper functions
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -72,8 +58,21 @@ function App() {
     return onboardings.filter(ob => ob.date === dateStr)
   }
 
+  const getSelectedDateOnboardings = () => {
+    return getOnboardingsForDate(selectedDate)
+  }
+
   const formatDateForDisplay = (date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+  }
+
+  const formatSelectedDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
   }
 
   const navigateMonth = (direction) => {
@@ -82,240 +81,263 @@ function App() {
     setCurrentDate(newDate)
   }
 
+  const getEmployeeColor = (employeeId) => {
+    return employees.find(e => e.id === employeeId)?.color || 'from-gray-500 to-gray-600'
+  }
+
+  const getTotalStats = () => {
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
+    const total = onboardings.length
+    return { thisMonth, total }
+  }
+
+  const stats = getTotalStats()
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
-        <h1 className="text-3xl font-bold text-gray-800 text-center mb-8">
-          Employee Onboarding Tracker
-        </h1>
-        
-        <div className="mb-8 p-4 bg-blue-50 rounded-lg">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Add New Onboarding</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <select
-              value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Employee</option>
-              {employees.map(employee => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+      {/* Header */}
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                Employee Onboarding Tracker
+              </h1>
+              <div className="flex items-center gap-6 text-sm text-blue-200">
+                <span className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  {stats.thisMonth} this month
+                </span>
+                <span className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  {stats.total} total
+                </span>
+              </div>
+            </div>
             
-            <input
-              type="text"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              placeholder="Client name..."
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            
-            <input
-              type="text"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
-              placeholder="Account number..."
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            
-            <button
-              onClick={addOnboarding}
-              disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
-              className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              Add Onboarding
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-6 flex justify-between items-center">
-          <div className="flex gap-4 items-center">
-            <h2 className="text-xl font-semibold text-gray-800">Onboardings</h2>
-            <div className="flex bg-gray-200 rounded-md p-1">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-white text-gray-800 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                List
-              </button>
-              <button
-                onClick={() => setViewMode('calendar')}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
-                  viewMode === 'calendar' 
-                    ? 'bg-white text-gray-800 shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                Calendar
-              </button>
-            </div>
-          </div>
-          <div className="text-sm text-gray-600">
-            Total: {totalOnboardings} onboardings
-          </div>
-        </div>
-
-        {viewMode === 'list' && (
-          <div className="mb-6">
-            <div className="flex gap-4 items-center mb-4">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Months</option>
-                {months.map(month => (
-                  <option key={month} value={month}>
-                    {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {filteredOnboardings.length > 0 ? (
-                [...filteredOnboardings].reverse().map(onboarding => (
-                  <div
-                    key={onboarding.id}
-                    className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="font-medium text-gray-800">{onboarding.clientName}</div>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
-                          Session #{onboarding.sessionNumber}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 mb-1">
-                        Account: {onboarding.accountNumber}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        by {onboarding.employeeName} • {new Date(onboarding.date).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => deleteOnboarding(onboarding.id)}
-                      className="text-red-500 hover:text-red-700 focus:outline-none px-3 py-1"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No onboardings recorded yet. Add one above!
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {viewMode === 'calendar' && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => navigateMonth(-1)}
-                className="p-2 hover:bg-gray-100 rounded-md"
-              >
-                ←
-              </button>
-              <h3 className="text-lg font-semibold text-gray-800">
-                {formatDateForDisplay(currentDate)}
-              </h3>
-              <button
-                onClick={() => navigateMonth(1)}
-                className="p-2 hover:bg-gray-100 rounded-md"
-              >
-                →
-              </button>
-            </div>
-
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                <div key={`empty-${i}`} className="p-2 h-20"></div>
-              ))}
-              {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                const day = i + 1
-                const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                const dayOnboardings = getOnboardingsForDate(date)
-                const isToday = date.toDateString() === new Date().toDateString()
+            {/* Add New Onboarding Form */}
+            <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
+              <h3 className="text-white font-medium mb-3">Quick Add</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <select
+                  value={selectedEmployee}
+                  onChange={(e) => setSelectedEmployee(e.target.value)}
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                >
+                  <option value="" className="text-gray-800">Select Employee</option>
+                  {employees.map(employee => (
+                    <option key={employee.id} value={employee.id} className="text-gray-800">
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
                 
-                return (
-                  <div
-                    key={day}
-                    className={`p-1 h-20 border border-gray-200 rounded text-xs ${
-                      isToday ? 'bg-blue-50 border-blue-300' : 'bg-white'
-                    }`}
-                  >
-                    <div className={`font-medium mb-1 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
-                      {day}
-                    </div>
-                    <div className="space-y-1 overflow-hidden">
-                      {dayOnboardings.slice(0, 2).map(onboarding => (
-                        <div
-                          key={onboarding.id}
-                          className="px-1 py-0.5 bg-green-100 text-green-800 rounded text-xs truncate"
-                          title={`${onboarding.clientName} - ${onboarding.employeeName}`}
-                        >
-                          {onboarding.clientName}
-                        </div>
-                      ))}
-                      {dayOnboardings.length > 2 && (
-                        <div className="text-xs text-gray-500">
-                          +{dayOnboardings.length - 2} more
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Client name..."
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                />
+                
+                <input
+                  type="text"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
+                  placeholder="Account number..."
+                  className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                />
+                
+                <button
+                  onClick={addOnboarding}
+                  disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Calendar Left, Tasks Right */}
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left Side - Calendar */}
+          <div className="lg:col-span-2">
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-6">
+                <button
+                  onClick={() => navigateMonth(-1)}
+                  className="p-3 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                <h2 className="text-2xl font-bold text-white">
+                  {formatDateForDisplay(currentDate)}
+                </h2>
+                
+                <button
+                  onClick={() => navigateMonth(1)}
+                  className="p-3 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-3 mb-4">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-sm font-medium text-blue-200 py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-3">
+                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                  <div key={`empty-${i}`} className="h-16"></div>
+                ))}
+                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
+                  const day = i + 1
+                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+                  const dayOnboardings = getOnboardingsForDate(date)
+                  const isToday = date.toDateString() === new Date().toDateString()
+                  const isSelected = date.toDateString() === selectedDate.toDateString()
+                  
+                  return (
+                    <div
+                      key={day}
+                      onClick={() => setSelectedDate(date)}
+                      className={`
+                        relative h-16 rounded-xl cursor-pointer transition-all duration-200 p-2
+                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
+                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
+                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
+                        border border-white/10
+                      `}
+                    >
+                      <div className={`text-sm font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
+                        {day}
+                      </div>
+                      
+                      {dayOnboardings.length > 0 && (
+                        <div className="absolute bottom-1 right-1">
+                          <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
+                            {dayOnboardings.length}
+                          </div>
                         </div>
                       )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Task List for Selected Date */}
+          <div className="lg:col-span-1">
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl h-full">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {formatSelectedDate(selectedDate)}
+                </h3>
+                <div className="text-blue-200 text-sm">
+                  {getSelectedDateOnboardings().length} onboardings scheduled
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {getSelectedDateOnboardings().length > 0 ? (
+                  getSelectedDateOnboardings().map(onboarding => (
+                    <div
+                      key={onboarding.id}
+                      className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="font-medium text-white">{onboarding.clientName}</div>
+                            <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
+                              #{onboarding.sessionNumber}
+                            </span>
+                          </div>
+                          
+                          <div className="text-sm text-blue-200 mb-2">
+                            Account: {onboarding.accountNumber}
+                          </div>
+                          
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                            {onboarding.employeeName}
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => deleteOnboarding(onboarding.id)}
+                          className="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-all duration-200"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-white/60">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4v6m0 0v6m6-6v6m6-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </div>
+                    <p>No onboardings scheduled</p>
+                    <p className="text-sm mt-1">Select a date to view onboardings</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Bottom Stats Section */}
+        <div className="mt-8">
+          <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-6">Team Performance</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {employees.map(employee => {
+                const currentMonth = new Date().toISOString().slice(0, 7)
+                const monthlyCount = onboardings.filter(ob => 
+                  ob.employeeId === employee.id && ob.month === currentMonth
+                ).length
+                const totalCount = onboardings.filter(ob => ob.employeeId === employee.id).length
+                
+                return (
+                  <div key={employee.id} className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105">
+                    <div className={`w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r ${employee.color} flex items-center justify-center shadow-lg`}>
+                      <span className="text-white font-bold text-lg">
+                        {employee.name.charAt(0)}
+                      </span>
+                    </div>
+                    <h4 className="font-semibold text-white text-center mb-2">{employee.name}</h4>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-400 mb-1">{monthlyCount}</div>
+                      <div className="text-xs text-blue-200">this month</div>
+                      <div className="text-sm text-white/60 mt-1">{totalCount} total</div>
                     </div>
                   </div>
                 )
               })}
             </div>
-          </div>
-        )}
-
-        <div className="border-t pt-6">
-          <div className="mb-4">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Monthly Stats</h2>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-            >
-              <option value="">All Months</option>
-              {months.map(month => (
-                <option key={month} value={month}>
-                  {new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {employees.map(employee => {
-              const count = getEmployeeStats(employee.id)
-              return (
-                <div key={employee.id} className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg text-center">
-                  <h3 className="font-semibold text-gray-800 mb-2">{employee.name}</h3>
-                  <div className="text-2xl font-bold text-blue-600">{count}</div>
-                  <div className="text-sm text-gray-600">onboardings</div>
-                </div>
-              )
-            })}
           </div>
         </div>
       </div>
