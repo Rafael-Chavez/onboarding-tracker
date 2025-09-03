@@ -36,7 +36,19 @@ export class GoogleSheetsService {
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        let errorMessage = `HTTP error! status: ${response.status}`
+        
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please check your API key and make sure the Google Sheet is publicly accessible.'
+        } else if (response.status === 403) {
+          errorMessage = 'Access forbidden. Make sure the Google Sheets API is enabled and the sheet is shared publicly.'
+        } else if (response.status === 404) {
+          errorMessage = 'Spreadsheet not found. Please check your spreadsheet ID.'
+        }
+        
+        console.error('Google Sheets API Error:', errorText)
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -53,9 +65,6 @@ export class GoogleSheetsService {
     }
 
     try {
-      // First, clear existing data (optional - you might want to keep history)
-      // await this.clearSheet()
-
       // Add header row
       const headerValues = [
         ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Synced At']
@@ -87,7 +96,19 @@ export class GoogleSheetsService {
       )
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        let errorMessage = `HTTP error! status: ${response.status}`
+        
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please check your API key and make sure the Google Sheet is publicly accessible.'
+        } else if (response.status === 403) {
+          errorMessage = 'Access forbidden. Make sure the Google Sheets API is enabled and the sheet is shared publicly.'
+        } else if (response.status === 404) {
+          errorMessage = 'Spreadsheet not found. Please check your spreadsheet ID.'
+        }
+        
+        console.error('Google Sheets API Error:', errorText)
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

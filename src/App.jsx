@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 
 function App() {
@@ -10,14 +10,44 @@ function App() {
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' }
   ])
   
-  const [onboardings, setOnboardings] = useState([])
+  // Load data from localStorage
+  const loadFromStorage = (key, defaultValue) => {
+    try {
+      const item = localStorage.getItem(key)
+      return item ? JSON.parse(item) : defaultValue
+    } catch (error) {
+      console.error(`Error loading ${key} from localStorage:`, error)
+      return defaultValue
+    }
+  }
+
+  // Save data to localStorage
+  const saveToStorage = (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value))
+    } catch (error) {
+      console.error(`Error saving ${key} to localStorage:`, error)
+    }
+  }
+
+  const [onboardings, setOnboardings] = useState(() => loadFromStorage('onboardings', []))
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' }) // type: 'success', 'error', ''
-  const [autoSync, setAutoSync] = useState(true) // Auto-sync toggle
+  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
+  const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
+
+  // Save onboardings to localStorage whenever it changes
+  useEffect(() => {
+    saveToStorage('onboardings', onboardings)
+  }, [onboardings])
+
+  // Save autoSync setting to localStorage whenever it changes
+  useEffect(() => {
+    saveToStorage('autoSync', autoSync)
+  }, [autoSync])
 
   const addOnboarding = async () => {
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
