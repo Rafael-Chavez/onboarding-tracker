@@ -1,47 +1,54 @@
 # Google Sheets Integration Setup Guide
 
-## Step 1: Create a Google Cloud Project
+## Easy Setup with Google Apps Script (Recommended)
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google Sheets API:
-   - Go to "APIs & Services" > "Library"
-   - Search for "Google Sheets API"
-   - Click on it and press "Enable"
+The Google Sheets API requires complex OAuth authentication for writing data. Instead, we'll use Google Apps Script as a simple backend.
 
-## Step 2: Create API Credentials
-
-1. Go to "APIs & Services" > "Credentials"
-2. Click "Create Credentials" > "API Key"
-3. Copy the generated API key
-4. (Optional) Restrict the API key to only the Google Sheets API for security
-
-## Step 3: Create a Google Sheet
+## Step 1: Create Your Google Sheet
 
 1. Go to [Google Sheets](https://sheets.google.com)
 2. Create a new spreadsheet
 3. Give it a name like "Onboarding Tracker Data"
-4. Copy the spreadsheet ID from the URL:
+4. Keep this sheet open - you'll need it in Step 3
+
+## Step 2: Set Up Google Apps Script
+
+1. Go to [script.google.com](https://script.google.com)
+2. Click **"New Project"**
+3. Replace the default `Code.gs` content with the code from `google-apps-script.js` file
+4. In the script, update the `SPREADSHEET_ID` variable:
+   ```javascript
+   // Update this line with your Google Sheets ID
+   const SPREADSHEET_ID = 'your_sheet_id_here';
    ```
-   https://docs.google.com/spreadsheets/d/SPREADSHEET_ID_HERE/edit
+   To get your Sheet ID, copy it from your Google Sheets URL:
    ```
+   https://docs.google.com/spreadsheets/d/1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo/edit
+   ```
+   The ID is: `1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo`
 
-## Step 4: Configure Sheet Permissions
+## Step 3: Deploy the Web App
 
-1. Share your Google Sheet with "Anyone with the link can edit" OR
-2. Make it public (less secure but simpler for testing)
+1. In Google Apps Script, click **"Deploy"** > **"New Deployment"**
+2. Click the gear icon next to "Type" and select **"Web app"**
+3. Set the following:
+   - **Execute as:** "Me"
+   - **Who has access:** "Anyone"
+4. Click **"Deploy"**
+5. **Copy the Web App URL** (it looks like `https://script.google.com/macros/s/ABC123.../exec`)
+6. Click "Done"
 
-## Step 5: Update Environment Variables
+## Step 4: Update Environment Variables
 
 Edit the `.env` file in your project root:
 
 ```env
-VITE_GOOGLE_SHEETS_API_KEY=your_actual_api_key_here
-VITE_GOOGLE_SHEETS_SPREADSHEET_ID=your_actual_spreadsheet_id_here
-VITE_GOOGLE_SHEETS_RANGE=Sheet1!A:F
+VITE_GOOGLE_APPS_SCRIPT_URL=your_web_app_url_here
 ```
 
-## Step 6: Test the Integration
+Replace `your_web_app_url_here` with the URL you copied in Step 3.
+
+## Step 5: Test the Integration
 
 1. Restart your development server: `npm run dev`
 2. Click "Test Connection" in the app
@@ -57,24 +64,33 @@ The app will create the following columns in your Google Sheet:
 
 ## Troubleshooting
 
-### "API not configured" error
-- Make sure you've set the environment variables correctly
+### "Web App URL not configured" error
+- Make sure you've set `VITE_GOOGLE_APPS_SCRIPT_URL` in your `.env` file
 - Restart the development server after updating `.env`
 
-### "403 Forbidden" error
-- Check that the Google Sheets API is enabled in your Google Cloud project
-- Verify your API key is correct and not restricted
+### "Authorization required" error
+- Make sure you deployed the Apps Script with "Execute as: Me" and "Who has access: Anyone"
+- Try re-deploying the web app
 
-### "404 Not Found" error
-- Double-check your spreadsheet ID
-- Make sure the sheet is shared properly
+### "Spreadsheet not found" error
+- Double-check the `SPREADSHEET_ID` in your Apps Script code
+- Make sure you can access the Google Sheet normally
 
-### CORS errors
-- This is normal in development
-- The integration will work properly when deployed to Vercel
+### Connection timeout
+- Google Apps Script can be slow on first run (cold start)
+- Try the connection test again after a few seconds
+
+## Advantages of Apps Script Approach
+
+✅ **No Complex Authentication**: No OAuth setup required
+✅ **Direct Sheet Access**: Apps Script runs with your Google account permissions
+✅ **Reliable**: Google's own infrastructure
+✅ **Free**: No API quotas or costs
+✅ **Simple Setup**: Just copy, paste, and deploy
 
 ## Security Notes
 
-- Never commit your actual API keys to version control
-- Consider using service account credentials for production
-- Restrict your API key to specific APIs and domains when possible
+- The web app runs under your Google account permissions
+- Only you can modify the Apps Script code
+- The web app URL is public but doesn't expose sensitive data
+- All data stays within your Google account ecosystem
