@@ -17,8 +17,9 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' }) // type: 'success', 'error', ''
+  const [autoSync, setAutoSync] = useState(true) // Auto-sync toggle
 
-  const addOnboarding = () => {
+  const addOnboarding = async () => {
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob => 
@@ -36,9 +37,44 @@ function App() {
         date: new Date().toISOString().split('T')[0],
         month: new Date().toISOString().slice(0, 7)
       }
-      setOnboardings([...onboardings, newOnboarding])
+      
+      // Update local state
+      const updatedOnboardings = [...onboardings, newOnboarding]
+      setOnboardings(updatedOnboardings)
       setClientName('')
       setAccountNumber('')
+      
+      // Auto-sync to Google Sheets if enabled
+      if (autoSync) {
+        setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
+        
+        try {
+          const result = await GoogleSheetsService.appendOnboarding(newOnboarding)
+          
+          if (result.success) {
+            setSyncStatus({ 
+              isLoading: false, 
+              message: 'Successfully synced to Google Sheets!', 
+              type: 'success' 
+            })
+            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
+          } else {
+            setSyncStatus({ 
+              isLoading: false, 
+              message: `Auto-sync failed: ${result.error}`, 
+              type: 'error' 
+            })
+            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+          }
+        } catch (error) {
+          setSyncStatus({ 
+            isLoading: false, 
+            message: `Auto-sync failed: ${error.message}`, 
+            type: 'error' 
+          })
+          setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        }
+      }
     }
   }
 
@@ -249,6 +285,19 @@ function App() {
                       `Sync ${onboardings.length} Records`
                     )}
                   </button>
+                  
+                  <div className="flex items-center gap-2 px-2">
+                    <input
+                      type="checkbox"
+                      id="autoSync"
+                      checked={autoSync}
+                      onChange={(e) => setAutoSync(e.target.checked)}
+                      className="w-4 h-4 text-green-500 bg-white/10 border-white/30 rounded focus:ring-green-400/50 focus:ring-2"
+                    />
+                    <label htmlFor="autoSync" className="text-sm text-white/80 cursor-pointer">
+                      Auto-sync new entries
+                    </label>
+                  </div>
                   
                   <button
                     onClick={testSheetsConnection}
