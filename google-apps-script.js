@@ -1,16 +1,3 @@
-/**
- * Google Apps Script for Onboarding Tracker
- * 
- * Instructions:
- * 1. Go to https://script.google.com
- * 2. Create a new project
- * 3. Replace the default code with this code
- * 4. Update SPREADSHEET_ID below with your Google Sheets ID
- * 5. Deploy as a web app with "Execute as: Me" and "Access: Anyone"
- * 6. Copy the web app URL to your .env file
- */
-
-// Update this with your Google Sheets ID
 const SPREADSHEET_ID = '1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo';
 const SHEET_NAME = 'Onboarding-Tracker';
 
