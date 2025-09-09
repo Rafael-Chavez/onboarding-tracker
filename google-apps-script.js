@@ -12,7 +12,7 @@
 
 // Update this with your Google Sheets ID
 const SPREADSHEET_ID = '1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo';
-const SHEET_NAME = 'Sheet1';
+const SHEET_NAME = 'Onboarding-Tracker';
 
 function doPost(e) {
   try {
@@ -56,14 +56,31 @@ function doGet(e) {
   // Handle GET requests (for testing)
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    
+    // Get all sheet names for debugging
+    const allSheets = ss.getSheets().map(sheet => sheet.getName());
+    
     const sheet = ss.getSheetByName(SHEET_NAME);
+    
+    if (!sheet) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: false, 
+          error: `Sheet "${SHEET_NAME}" not found. Available sheets: ${allSheets.join(', ')}`,
+          availableSheets: allSheets
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
         success: true, 
         message: 'Google Apps Script is working!',
         sheetName: sheet.getName(),
-        lastRow: sheet.getLastRow()
+        lastRow: sheet.getLastRow(),
+        availableSheets: allSheets,
+        spreadsheetId: SPREADSHEET_ID,
+        targetSheet: SHEET_NAME
       }))
       .setMimeType(ContentService.MimeType.JSON);
       
