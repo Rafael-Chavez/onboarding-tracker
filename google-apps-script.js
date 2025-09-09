@@ -3,29 +3,45 @@ const SHEET_NAME = 'Onboarding-Tracker';
 
 function doPost(e) {
   try {
+    // Log the incoming request for debugging
+    console.log('doPost called with:', JSON.stringify({
+      postData: e.postData,
+      parameter: e.parameter
+    }));
+    
     // Parse the request - handle both JSON and form data
     let data, action;
     
-    if (e.postData.contents) {
+    if (e.postData && e.postData.contents) {
       // JSON request
+      console.log('Processing JSON request');
       data = JSON.parse(e.postData.contents);
       action = data.action;
-    } else {
+    } else if (e.parameter) {
       // Form data request
+      console.log('Processing form data request');
       action = e.parameter.action;
       data = JSON.parse(e.parameter.data || '{}');
+    } else {
+      throw new Error('No valid request data found');
     }
+    
+    console.log('Parsed action:', action);
+    console.log('Parsed data:', JSON.stringify(data));
     
     // Get the spreadsheet
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(SHEET_NAME);
+    
+    // Write debug info to cell H1 to verify script is running
+    sheet.getRange('H1').setValue(`Last execution: ${new Date().toISOString()} - Action: ${action}`);
     
     if (action === 'append') {
       return appendOnboarding(sheet, data.onboarding);
     } else if (action === 'syncAll') {
       return syncAllOnboardings(sheet, data.onboardings);
     } else if (action === 'test') {
-      return testConnection(sheet);
+      return appendOnboarding(sheet, data.onboarding);
     }
     
     return ContentService
