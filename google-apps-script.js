@@ -16,9 +16,18 @@ const SHEET_NAME = 'Sheet1';
 
 function doPost(e) {
   try {
-    // Parse the request
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
+    // Parse the request - handle both JSON and form data
+    let data, action;
+    
+    if (e.postData.contents) {
+      // JSON request
+      data = JSON.parse(e.postData.contents);
+      action = data.action;
+    } else {
+      // Form data request
+      action = e.parameter.action;
+      data = JSON.parse(e.parameter.data || '{}');
+    }
     
     // Get the spreadsheet
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
