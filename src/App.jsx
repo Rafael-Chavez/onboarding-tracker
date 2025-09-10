@@ -196,6 +196,17 @@ function App() {
   const syncToGoogleSheets = async () => {
     setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets...', type: '' })
     
+    // Debug: Log the data being synced
+    console.log('🔄 Syncing onboardings to Google Sheets:')
+    console.log('📊 Total onboardings:', onboardings.length)
+    console.log('📋 Sample onboarding:', onboardings[0])
+    console.log('📍 Attendance values in first 3 onboardings:', 
+      onboardings.slice(0, 3).map(o => ({ 
+        client: o.clientName, 
+        attendance: o.attendance 
+      }))
+    )
+    
     try {
       const result = await GoogleSheetsService.syncAllOnboardings(onboardings)
       
@@ -420,6 +431,20 @@ function App() {
                       className="px-4 py-1.5 text-sm bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                     >
                       Debug Sheet
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const result = await GoogleSheetsService.submitData('forceHeaders', {});
+                          console.log('Force headers result:', result);
+                        } catch (error) {
+                          console.error('Force headers error:', error);
+                        }
+                      }}
+                      disabled={syncStatus.isLoading}
+                      className="px-4 py-1.5 text-sm bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      Force Headers
                     </button>
                   </div>
                 </div>

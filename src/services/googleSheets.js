@@ -147,28 +147,40 @@ export class GoogleSheetsService {
     }
 
     try {
-      // Test with actual data submission
+      // Test with actual data submission including attendance
       const testData = {
         date: new Date().toISOString().split('T')[0],
         employeeName: 'Test User',
         clientName: 'Test Client Connection',
         accountNumber: 'TEST-123',
         sessionNumber: 1,
-        attendance: 'pending'
+        attendance: 'pending'  // Explicitly set attendance
       }
 
-      console.log('Testing connection with data:', testData)
-      console.log('Web App URL:', WEB_APP_URL)
+      console.log('🧪 Testing connection with attendance data:', testData)
+      console.log('📍 Attendance value being sent:', testData.attendance)
+      console.log('📦 Full data package being sent:', { onboarding: testData })
+      console.log('🌐 Web App URL:', WEB_APP_URL)
+
+      // Log the FormData being sent
+      const formData = new FormData()
+      formData.append('action', 'test')
+      formData.append('data', JSON.stringify({ onboarding: testData }))
+      
+      console.log('📋 FormData entries:')
+      for (let [key, value] of formData.entries()) {
+        console.log(`  ${key}:`, value)
+      }
 
       const result = await this.submitData('test', { onboarding: testData })
-      console.log('Test result:', result)
+      console.log('✅ Test result:', result)
 
       return { 
         success: true, 
-        message: 'Test data submitted. Check your Google Sheet for "Test Client Connection" entry to verify connection.' 
+        message: 'Test data submitted with attendance: "pending". Check Google Apps Script logs and your Google Sheet column F for attendance data.' 
       }
     } catch (error) {
-      console.error('Error testing Google Sheets connection:', error)
+      console.error('❌ Error testing Google Sheets connection:', error)
       return { success: false, error: error.message }
     }
   }
