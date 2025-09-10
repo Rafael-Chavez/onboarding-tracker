@@ -116,6 +116,28 @@ function App() {
     setOnboardings(onboardings.filter(ob => ob.id !== id))
   }
 
+  const updateOnboardingAttendance = async (id, newAttendance) => {
+    // Update local state
+    const updatedOnboardings = onboardings.map(ob => 
+      ob.id === id ? { ...ob, attendance: newAttendance } : ob
+    )
+    setOnboardings(updatedOnboardings)
+
+    // Auto-sync to Google Sheets if enabled
+    if (autoSync) {
+      try {
+        // Find the updated onboarding
+        const updatedOnboarding = updatedOnboardings.find(ob => ob.id === id)
+        if (updatedOnboarding) {
+          console.log('🔄 Syncing attendance update to Google Sheets:', updatedOnboarding)
+          await GoogleSheetsService.updateOnboarding(updatedOnboarding)
+        }
+      } catch (error) {
+        console.error('Error syncing attendance update:', error)
+      }
+    }
+  }
+
   // Calendar helper functions
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -574,17 +596,24 @@ function App() {
                               {onboarding.employeeName}
                             </div>
                             
-                            <div className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                              onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30' :
-                              onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border border-green-400/30' :
-                              onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border border-red-400/30' :
-                              onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30' :
-                              onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30' :
-                              'bg-blue-500/20 text-blue-300 border border-blue-400/30'
-                            }`}>
-                              {onboarding.attendance === 'no-show' ? 'No Show' : 
-                               onboarding.attendance ? onboarding.attendance.charAt(0).toUpperCase() + onboarding.attendance.slice(1) : 'Pending'}
-                            </div>
+                            <select
+                              value={onboarding.attendance || 'pending'}
+                              onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
+                              className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
+                                onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
+                                onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
+                                onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                                onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
+                                onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
+                                'bg-blue-500/20 text-blue-300 border-blue-400/30'
+                              }`}
+                            >
+                              <option value="pending" className="text-gray-800">Pending</option>
+                              <option value="completed" className="text-gray-800">Completed</option>
+                              <option value="cancelled" className="text-gray-800">Cancelled</option>
+                              <option value="rescheduled" className="text-gray-800">Rescheduled</option>
+                              <option value="no-show" className="text-gray-800">No Show</option>
+                            </select>
                           </div>
                         </div>
                         

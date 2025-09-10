@@ -40,6 +40,8 @@ function doPost(e) {
       return appendOnboarding(sheet, data.onboarding);
     } else if (action === 'syncAll') {
       return syncAllOnboardings(sheet, data.onboardings);
+    } else if (action === 'update') {
+      return updateOnboarding(sheet, data.onboarding);
     } else if (action === 'test') {
       return appendOnboarding(sheet, data.onboarding);
     } else if (action === 'read') {
@@ -98,9 +100,49 @@ function doGet(e) {
 
 function appendOnboarding(sheet, onboarding) {
   try {
-    // Add header row if sheet is empty
+    // Check if we need to update headers
     if (sheet.getLastRow() === 0) {
+      // New sheet - add headers
       sheet.appendRow(['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At']);
+    } else {
+      // Check if we need to add attendance column to existing sheet
+      const lastCol = sheet.getLastColumn();
+      const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      
+      console.log('Current headers:', headers);
+      console.log('Header count:', headers.length);
+      
+      // Check if attendance column is missing
+      const hasAttendance = headers.some(header => 
+        header && header.toString().toLowerCase().includes('attendance')
+      );
+      
+      if (!hasAttendance && headers.length >= 5) {
+        console.log('Adding attendance column');
+        // Insert attendance column before the last column (Synced At)
+        const insertPos = headers.length; // Insert at the end, then move Synced At
+        
+        if (headers[headers.length - 1] && headers[headers.length - 1].toString().includes('Synced')) {
+          // Insert before Synced At column
+          sheet.insertColumnBefore(lastCol);
+          sheet.getRange(1, lastCol).setValue('Attendance');
+          
+          // Fill existing rows with 'pending'
+          if (sheet.getLastRow() > 1) {
+            const fillRange = sheet.getRange(2, lastCol, sheet.getLastRow() - 1, 1);
+            fillRange.setValue('pending');
+          }
+        } else {
+          // Just append attendance column
+          sheet.getRange(1, lastCol + 1).setValue('Attendance');
+          
+          // Fill existing rows with 'pending'
+          if (sheet.getLastRow() > 1) {
+            const fillRange = sheet.getRange(2, lastCol + 1, sheet.getLastRow() - 1, 1);
+            fillRange.setValue('pending');
+          }
+        }
+      }
     }
     
     // Add the onboarding data
@@ -247,6 +289,56 @@ function readAllOnboardings(sheet) {
         error: error.toString(),
         message: 'Failed to read data from sheet'
       }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function updateOnboarding(sheet, onboarding) {
+  try {
+    // Find the row to update by matching date, employee, and client
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Find column indices
+    const dateCol = headers.indexOf('Date');
+    const employeeCol = headers.indexOf('Employee');
+    const clientCol = headers.indexOf('Client Name');
+    const attendanceCol = headers.indexOf('Attendance');
+    
+    if (attendanceCol === -1) {
+      throw new Error('Attendance column not found');
+    }
+    
+    // Find matching row
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const rowDate = row[dateCol] instanceof Date ? 
+        row[dateCol].toISOString().split('T')[0] : 
+        row[dateCol].toString();
+      
+      if (rowDate === onboarding.date && 
+          row[employeeCol] === onboarding.employeeName && 
+          row[clientCol] === onboarding.clientName) {
+        
+        // Update the attendance in this row
+        sheet.getRange(i + 1, attendanceCol + 1).setValue(onboarding.attendance || 'pending');
+        
+        return ContentService
+          .createTextOutput(JSON.stringify({ 
+            success: true, 
+            message: 'Attendance updated successfully',
+            row: i + 1
+          }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    
+    // If no matching row found, append as new
+    return appendOnboarding(sheet, onboarding);
+    
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }

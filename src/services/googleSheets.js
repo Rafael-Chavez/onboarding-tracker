@@ -243,6 +243,28 @@ export class GoogleSheetsService {
   }
 
   // Alternative method: Use Google Sheets API for reading (requires API key)
+  static async updateOnboarding(onboarding) {
+    if (!WEB_APP_URL) {
+      return { success: false, error: 'Web App URL not configured. Please follow setup instructions.' }
+    }
+
+    try {
+      console.log('🔄 Updating onboarding attendance:', onboarding)
+      
+      // Try update method first, fallback to append method if needed
+      const result = await this.submitData('update', { onboarding })
+      return result
+    } catch (error) {
+      console.error('❌ Error updating onboarding:', error)
+      // Fallback to form method
+      try {
+        return await this.submitFormData('update', { onboarding })
+      } catch (fallbackError) {
+        return { success: false, error: fallbackError.message }
+      }
+    }
+  }
+
   static async importFromGoogleSheetsAPI() {
     const SPREADSHEET_ID = '1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo'
     const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY
