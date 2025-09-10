@@ -175,26 +175,39 @@ function appendOnboarding(sheet, onboarding) {
 
 function syncAllOnboardings(sheet, onboardings) {
   try {
+    console.log('Starting syncAll with', onboardings.length, 'onboardings');
+    
     // Clear existing data
     sheet.clear();
     
-    // Add header row
+    // Add header row with all columns
     const headers = ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At'];
     sheet.appendRow(headers);
     
+    console.log('Headers added:', headers);
+    
     // Add all onboarding data
-    const rows = onboardings.map(onboarding => [
-      onboarding.date,
-      onboarding.employeeName,
-      onboarding.clientName,
-      onboarding.accountNumber,
-      onboarding.sessionNumber,
-      onboarding.attendance || 'pending',
-      new Date().toISOString()
-    ]);
+    const rows = onboardings.map((onboarding, index) => {
+      const row = [
+        onboarding.date || '',
+        onboarding.employeeName || '',
+        onboarding.clientName || '',
+        onboarding.accountNumber || '',
+        onboarding.sessionNumber || 1,
+        onboarding.attendance || 'pending',
+        new Date().toISOString()
+      ];
+      console.log(`Row ${index + 1}:`, row);
+      return row;
+    });
     
     if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+      console.log('Adding', rows.length, 'rows to sheet');
+      const range = sheet.getRange(2, 1, rows.length, headers.length);
+      range.setValues(rows);
+      console.log('Data successfully written to range', range.getA1Notation());
+    } else {
+      console.log('No data to add');
     }
     
     return ContentService

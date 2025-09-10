@@ -31,7 +31,14 @@ function App() {
     }
   }
 
-  const [onboardings, setOnboardings] = useState(() => loadFromStorage('onboardings', []))
+  const [onboardings, setOnboardings] = useState(() => {
+    const data = loadFromStorage('onboardings', [])
+    // Migrate old data to include attendance field
+    return data.map(ob => ({
+      ...ob,
+      attendance: ob.attendance || 'pending'
+    }))
+  })
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
