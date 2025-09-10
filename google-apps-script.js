@@ -110,7 +110,7 @@ function appendOnboarding(sheet, onboarding) {
       onboarding.clientName,
       onboarding.accountNumber,
       onboarding.sessionNumber,
-      onboarding.attendance || 'completed',
+      onboarding.attendance || 'pending',
       new Date().toISOString()
     ];
     
@@ -147,7 +147,7 @@ function syncAllOnboardings(sheet, onboardings) {
       onboarding.clientName,
       onboarding.accountNumber,
       onboarding.sessionNumber,
-      onboarding.attendance || 'completed',
+      onboarding.attendance || 'pending',
       new Date().toISOString()
     ]);
     
@@ -225,7 +225,7 @@ function readAllOnboardings(sheet) {
         clientName: clientName ? clientName.toString() : '',
         accountNumber: accountNumber ? accountNumber.toString() : '',
         sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
-        attendance: attendance ? attendance.toString() : 'completed',
+        attendance: attendance ? attendance.toString() : 'pending',
         month: dateStr.slice(0, 7), // Extract YYYY-MM
         // Map employee name to ID (you might want to adjust this based on your employee list)
         employeeId: getEmployeeId(employeeName)

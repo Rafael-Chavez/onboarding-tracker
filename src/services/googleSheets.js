@@ -305,7 +305,7 @@ export class GoogleSheetsService {
           clientName: clientName || '',
           accountNumber: accountNumber || '',
           sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
-          attendance: attendance || 'completed',
+          attendance: attendance || 'pending',
           month: dateStr.slice(0, 7)
         }
       }).filter(Boolean) // Remove null entries
