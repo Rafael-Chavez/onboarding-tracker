@@ -256,58 +256,16 @@ function App() {
   }
 
   const importFromGoogleSheets = async () => {
-    setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
+    setSyncStatus({ isLoading: true, message: 'Import not available due to Google API restrictions...', type: '' })
     
-    try {
-      // Try API method first (if API key is available)
-      const result = await GoogleSheetsService.importFromGoogleSheetsAPI()
-      
-      if (result.success && result.onboardings && result.onboardings.length > 0) {
-        // Merge imported data with existing data, avoiding duplicates
-        const existingData = new Set(onboardings.map(ob => `${ob.date}-${ob.clientName}-${ob.accountNumber}`))
-        const newOnboardings = result.onboardings.filter(ob => 
-          !existingData.has(`${ob.date}-${ob.clientName}-${ob.accountNumber}`)
-        )
-        
-        if (newOnboardings.length > 0) {
-          setOnboardings(prev => [...prev, ...newOnboardings])
-          setSyncStatus({ 
-            isLoading: false, 
-            message: `Successfully imported ${newOnboardings.length} new onboardings from Google Sheets!`, 
-            type: 'success' 
-          })
-        } else {
-          setSyncStatus({ 
-            isLoading: false, 
-            message: 'No new data found to import - all data is already in sync!', 
-            type: 'success' 
-          })
-        }
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-      } else if (result.error && result.error.includes('API key not configured')) {
-        // Fallback message for no API key
-        setSyncStatus({ 
-          isLoading: false, 
-          message: 'Import requires Google Sheets API key. Please add data manually to your Google Sheet and it will sync when you add new entries.', 
-          type: 'error' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 6000)
-      } else {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: result.message || 'Import completed - check Google Sheet for any new data', 
-          type: 'success' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-      }
-    } catch (error) {
+    setTimeout(() => {
       setSyncStatus({ 
         isLoading: false, 
-        message: `Import failed: ${error.message}`, 
+        message: 'Import from Google Sheets requires special permissions. For now, add data manually to your Google Sheet and use the sync buttons to keep data in sync between the app and sheet.', 
         type: 'error' 
       })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-    }
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 8000)
+    }, 1000)
   }
 
   const stats = getTotalStats()
@@ -436,7 +394,7 @@ function App() {
                     </label>
                   </div>
                   
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={importFromGoogleSheets}
                       disabled={syncStatus.isLoading}
@@ -450,6 +408,18 @@ function App() {
                       className="px-4 py-1.5 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                     >
                       Test Connection
+                    </button>
+                    <button
+                      onClick={async () => {
+                        console.log('Current onboardings data (first 3):', onboardings.slice(0, 3));
+                        console.log('Sample onboarding structure:', onboardings[0]);
+                        const result = await GoogleSheetsService.debugGoogleSheet();
+                        console.log('Debug result:', result);
+                      }}
+                      disabled={syncStatus.isLoading}
+                      className="px-4 py-1.5 text-sm bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      Debug Sheet
                     </button>
                   </div>
                 </div>

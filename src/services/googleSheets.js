@@ -153,7 +153,8 @@ export class GoogleSheetsService {
         employeeName: 'Test User',
         clientName: 'Test Client Connection',
         accountNumber: 'TEST-123',
-        sessionNumber: 1
+        sessionNumber: 1,
+        attendance: 'pending'
       }
 
       console.log('Testing connection with data:', testData)
@@ -168,6 +169,27 @@ export class GoogleSheetsService {
       }
     } catch (error) {
       console.error('Error testing Google Sheets connection:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  static async debugGoogleSheet() {
+    if (!WEB_APP_URL) {
+      return { success: false, error: 'Web App URL not configured. Please follow setup instructions.' }
+    }
+
+    try {
+      console.log('🐛 Debugging Google Sheet structure...')
+      
+      const result = await this.submitData('debug', {})
+      console.log('Debug result:', result)
+
+      return { 
+        success: true, 
+        message: 'Debug info collected - check console for details.' 
+      }
+    } catch (error) {
+      console.error('Error debugging Google Sheets:', error)
       return { success: false, error: error.message }
     }
   }

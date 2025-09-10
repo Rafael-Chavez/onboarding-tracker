@@ -46,6 +46,8 @@ function doPost(e) {
       return appendOnboarding(sheet, data.onboarding);
     } else if (action === 'read') {
       return readAllOnboardings(sheet);
+    } else if (action === 'debug') {
+      return debugSheet(sheet, data);
     }
     
     return ContentService
@@ -349,6 +351,47 @@ function updateOnboarding(sheet, onboarding) {
     // If no matching row found, append as new
     return appendOnboarding(sheet, onboarding);
     
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function debugSheet(sheet, data) {
+  try {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    
+    let debugInfo = {
+      sheetInfo: {
+        name: sheet.getName(),
+        lastRow: lastRow,
+        lastColumn: lastCol
+      },
+      headers: [],
+      sampleData: [],
+      receivedData: data
+    };
+    
+    if (lastRow > 0) {
+      // Get headers
+      debugInfo.headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      
+      // Get first few rows of data
+      if (lastRow > 1) {
+        const sampleRows = Math.min(3, lastRow - 1);
+        debugInfo.sampleData = sheet.getRange(2, 1, sampleRows, lastCol).getValues();
+      }
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: true, 
+        debug: debugInfo
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
   } catch (error) {
     return ContentService
       .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
