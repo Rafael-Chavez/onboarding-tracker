@@ -7,7 +7,8 @@ function App() {
     { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
-    { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' }
+    { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
+    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ])
   
   // Load data from localStorage
@@ -34,6 +35,7 @@ function App() {
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
+  const [attendance, setAttendance] = useState('completed')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
@@ -64,6 +66,7 @@ function App() {
         clientName: clientName.trim(),
         accountNumber: accountNumber.trim(),
         sessionNumber,
+        attendance,
         date: new Date().toISOString().split('T')[0],
         month: new Date().toISOString().slice(0, 7)
       }
@@ -73,6 +76,7 @@ function App() {
       setOnboardings(updatedOnboardings)
       setClientName('')
       setAccountNumber('')
+      setAttendance('completed')
       
       // Auto-sync to Google Sheets if enabled
       if (autoSync) {
@@ -305,7 +309,7 @@ function App() {
               {/* Add New Onboarding Form */}
               <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 flex-1">
                 <h3 className="text-white font-medium mb-3">Quick Add</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <select
                     value={selectedEmployee}
                     onChange={(e) => setSelectedEmployee(e.target.value)}
@@ -335,6 +339,17 @@ function App() {
                     placeholder="Account number..."
                     className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
                   />
+                  
+                  <select
+                    value={attendance}
+                    onChange={(e) => setAttendance(e.target.value)}
+                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  >
+                    <option value="completed" className="text-gray-800">Completed</option>
+                    <option value="cancelled" className="text-gray-800">Cancelled</option>
+                    <option value="rescheduled" className="text-gray-800">Rescheduled</option>
+                    <option value="no-show" className="text-gray-800">No Show</option>
+                  </select>
                   
                   <button
                     onClick={addOnboarding}
@@ -545,9 +560,22 @@ function App() {
                             Account: {onboarding.accountNumber}
                           </div>
                           
-                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                            {onboarding.employeeName}
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
+                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                              {onboarding.employeeName}
+                            </div>
+                            
+                            <div className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                              onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border border-green-400/30' :
+                              onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border border-red-400/30' :
+                              onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30' :
+                              onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30' :
+                              'bg-green-500/20 text-green-300 border border-green-400/30'
+                            }`}>
+                              {onboarding.attendance === 'no-show' ? 'No Show' : 
+                               onboarding.attendance ? onboarding.attendance.charAt(0).toUpperCase() + onboarding.attendance.slice(1) : 'Completed'}
+                            </div>
                           </div>
                         </div>
                         

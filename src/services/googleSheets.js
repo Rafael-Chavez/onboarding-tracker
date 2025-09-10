@@ -278,7 +278,7 @@ export class GoogleSheetsService {
       
       // Convert Google Sheets data to app format
       const onboardings = data.values.map((row, index) => {
-        const [date, employeeName, clientName, accountNumber, sessionNumber] = row
+        const [date, employeeName, clientName, accountNumber, sessionNumber, attendance] = row
         
         // Skip empty rows
         if (!date && !employeeName && !clientName) {
@@ -291,7 +291,8 @@ export class GoogleSheetsService {
           'Danreb': 2,
           'Jim': 3,
           'Marc': 4,
-          'Steve': 5
+          'Steve': 5,
+          'Erick': 6
         }
         
         const dateStr = date ? date.toString() : new Date().toISOString().split('T')[0]
@@ -304,6 +305,7 @@ export class GoogleSheetsService {
           clientName: clientName || '',
           accountNumber: accountNumber || '',
           sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
+          attendance: attendance || 'completed',
           month: dateStr.slice(0, 7)
         }
       }).filter(Boolean) // Remove null entries

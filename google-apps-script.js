@@ -100,7 +100,7 @@ function appendOnboarding(sheet, onboarding) {
   try {
     // Add header row if sheet is empty
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Synced At']);
+      sheet.appendRow(['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At']);
     }
     
     // Add the onboarding data
@@ -110,6 +110,7 @@ function appendOnboarding(sheet, onboarding) {
       onboarding.clientName,
       onboarding.accountNumber,
       onboarding.sessionNumber,
+      onboarding.attendance || 'completed',
       new Date().toISOString()
     ];
     
@@ -136,7 +137,7 @@ function syncAllOnboardings(sheet, onboardings) {
     sheet.clear();
     
     // Add header row
-    const headers = ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Synced At'];
+    const headers = ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At'];
     sheet.appendRow(headers);
     
     // Add all onboarding data
@@ -146,6 +147,7 @@ function syncAllOnboardings(sheet, onboardings) {
       onboarding.clientName,
       onboarding.accountNumber,
       onboarding.sessionNumber,
+      onboarding.attendance || 'completed',
       new Date().toISOString()
     ]);
     
@@ -202,11 +204,11 @@ function readAllOnboardings(sheet) {
     }
     
     // Get all data starting from row 2 (skip headers)
-    const range = sheet.getRange(2, 1, lastRow - 1, 6); // 6 columns: Date, Employee, Client Name, Account Number, Session #, Synced At
+    const range = sheet.getRange(2, 1, lastRow - 1, 7); // 7 columns: Date, Employee, Client Name, Account Number, Session #, Attendance, Synced At
     const values = range.getValues();
     
     const onboardings = values.map((row, index) => {
-      const [date, employeeName, clientName, accountNumber, sessionNumber, syncedAt] = row;
+      const [date, employeeName, clientName, accountNumber, sessionNumber, attendance, syncedAt] = row;
       
       // Skip empty rows
       if (!date && !employeeName && !clientName) {
@@ -223,6 +225,7 @@ function readAllOnboardings(sheet) {
         clientName: clientName ? clientName.toString() : '',
         accountNumber: accountNumber ? accountNumber.toString() : '',
         sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
+        attendance: attendance ? attendance.toString() : 'completed',
         month: dateStr.slice(0, 7), // Extract YYYY-MM
         // Map employee name to ID (you might want to adjust this based on your employee list)
         employeeId: getEmployeeId(employeeName)
@@ -255,7 +258,8 @@ function getEmployeeId(employeeName) {
     'Danreb': 2,
     'Jim': 3,
     'Marc': 4,
-    'Steve': 5
+    'Steve': 5,
+    'Erick': 6
   };
   
   return employees[employeeName] || 1; // Default to 1 if not found
