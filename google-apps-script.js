@@ -42,6 +42,8 @@ function doPost(e) {
       return syncAllOnboardings(sheet, data.onboardings);
     } else if (action === 'test') {
       return appendOnboarding(sheet, data.onboarding);
+    } else if (action === 'read') {
+      return readAllOnboardings(sheet);
     }
     
     return ContentService
@@ -182,4 +184,79 @@ function testConnection(sheet) {
       .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+function readAllOnboardings(sheet) {
+  try {
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow <= 1) {
+      // Only headers or empty sheet
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: true, 
+          onboardings: [],
+          message: 'No data found in sheet'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Get all data starting from row 2 (skip headers)
+    const range = sheet.getRange(2, 1, lastRow - 1, 6); // 6 columns: Date, Employee, Client Name, Account Number, Session #, Synced At
+    const values = range.getValues();
+    
+    const onboardings = values.map((row, index) => {
+      const [date, employeeName, clientName, accountNumber, sessionNumber, syncedAt] = row;
+      
+      // Skip empty rows
+      if (!date && !employeeName && !clientName) {
+        return null;
+      }
+      
+      // Convert date to string format
+      const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : date.toString();
+      
+      return {
+        id: Date.now() + index, // Generate unique ID
+        date: dateStr,
+        employeeName: employeeName ? employeeName.toString() : '',
+        clientName: clientName ? clientName.toString() : '',
+        accountNumber: accountNumber ? accountNumber.toString() : '',
+        sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
+        month: dateStr.slice(0, 7), // Extract YYYY-MM
+        // Map employee name to ID (you might want to adjust this based on your employee list)
+        employeeId: getEmployeeId(employeeName)
+      };
+    }).filter(onboarding => onboarding !== null); // Remove null entries
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: true, 
+        onboardings: onboardings,
+        message: `Successfully read ${onboardings.length} onboardings from sheet`
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: false, 
+        error: error.toString(),
+        message: 'Failed to read data from sheet'
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function getEmployeeId(employeeName) {
+  // Map employee names to IDs based on your app's employee list
+  const employees = {
+    'Rafael': 1,
+    'Danreb': 2,
+    'Jim': 3,
+    'Marc': 4,
+    'Steve': 5
+  };
+  
+  return employees[employeeName] || 1; // Default to 1 if not found
 }

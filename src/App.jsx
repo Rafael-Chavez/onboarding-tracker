@@ -222,6 +222,61 @@ function App() {
     }
   }
 
+  const importFromGoogleSheets = async () => {
+    setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
+    
+    try {
+      // Try API method first (if API key is available)
+      const result = await GoogleSheetsService.importFromGoogleSheetsAPI()
+      
+      if (result.success && result.onboardings && result.onboardings.length > 0) {
+        // Merge imported data with existing data, avoiding duplicates
+        const existingData = new Set(onboardings.map(ob => `${ob.date}-${ob.clientName}-${ob.accountNumber}`))
+        const newOnboardings = result.onboardings.filter(ob => 
+          !existingData.has(`${ob.date}-${ob.clientName}-${ob.accountNumber}`)
+        )
+        
+        if (newOnboardings.length > 0) {
+          setOnboardings(prev => [...prev, ...newOnboardings])
+          setSyncStatus({ 
+            isLoading: false, 
+            message: `Successfully imported ${newOnboardings.length} new onboardings from Google Sheets!`, 
+            type: 'success' 
+          })
+        } else {
+          setSyncStatus({ 
+            isLoading: false, 
+            message: 'No new data found to import - all data is already in sync!', 
+            type: 'success' 
+          })
+        }
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+      } else if (result.error && result.error.includes('API key not configured')) {
+        // Fallback message for no API key
+        setSyncStatus({ 
+          isLoading: false, 
+          message: 'Import requires Google Sheets API key. Please add data manually to your Google Sheet and it will sync when you add new entries.', 
+          type: 'error' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 6000)
+      } else {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: result.message || 'Import completed - check Google Sheet for any new data', 
+          type: 'success' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+      }
+    } catch (error) {
+      setSyncStatus({ 
+        isLoading: false, 
+        message: `Import failed: ${error.message}`, 
+        type: 'error' 
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+    }
+  }
+
   const stats = getTotalStats()
 
   return (
@@ -329,13 +384,22 @@ function App() {
                     </label>
                   </div>
                   
-                  <button
-                    onClick={testSheetsConnection}
-                    disabled={syncStatus.isLoading}
-                    className="px-4 py-1.5 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    Test Connection
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={importFromGoogleSheets}
+                      disabled={syncStatus.isLoading}
+                      className="px-4 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                    >
+                      Import from Sheet
+                    </button>
+                    <button
+                      onClick={testSheetsConnection}
+                      disabled={syncStatus.isLoading}
+                      className="px-4 py-1.5 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    >
+                      Test Connection
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
