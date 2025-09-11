@@ -267,16 +267,78 @@ function App() {
   }
 
   const importFromGoogleSheets = async () => {
-    setSyncStatus({ isLoading: true, message: 'Import not available due to Google API restrictions...', type: '' })
+    setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
     
-    setTimeout(() => {
+    try {
+      // Try API method first, fallback to Apps Script method
+      let result = await GoogleSheetsService.importFromGoogleSheetsAPI()
+      
+      // If API method fails with 403, try alternative approach
+      if (!result.success && result.error.includes('403')) {
+        console.log('🔄 API method failed, trying alternative approach...')
+        setSyncStatus({ isLoading: true, message: 'API access denied, trying alternative method...', type: '' })
+        result = await GoogleSheetsService.importFromGoogleAppsScript()
+      }
+      
+      if (result.success) {
+        // If we got data, merge it with existing data
+        if (result.onboardings && result.onboardings.length > 0) {
+          // Create a map of existing onboardings to avoid duplicates
+          const existingMap = new Map()
+          onboardings.forEach(ob => {
+            const key = `${ob.date}-${ob.clientName}-${ob.accountNumber}`
+            existingMap.set(key, ob)
+          })
+          
+          // Add imported onboardings that don't already exist
+          const newOnboardings = []
+          result.onboardings.forEach(importedOb => {
+            const key = `${importedOb.date}-${importedOb.clientName}-${importedOb.accountNumber}`
+            if (!existingMap.has(key)) {
+              newOnboardings.push(importedOb)
+            }
+          })
+          
+          if (newOnboardings.length > 0) {
+            const mergedOnboardings = [...onboardings, ...newOnboardings]
+            setOnboardings(mergedOnboardings)
+            setSyncStatus({ 
+              isLoading: false, 
+              message: `Successfully imported ${newOnboardings.length} new onboardings from Google Sheets!`, 
+              type: 'success' 
+            })
+          } else {
+            setSyncStatus({ 
+              isLoading: false, 
+              message: 'No new data to import - all onboardings already exist locally.', 
+              type: 'success' 
+            })
+          }
+        } else {
+          setSyncStatus({ 
+            isLoading: false, 
+            message: result.message || 'No data found in Google Sheet', 
+            type: 'success' 
+          })
+        }
+        
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
+      } else {
+        setSyncStatus({ 
+          isLoading: false, 
+          message: `Import failed: ${result.error}`, 
+          type: 'error' 
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+      }
+    } catch (error) {
       setSyncStatus({ 
         isLoading: false, 
-        message: 'Import from Google Sheets requires special permissions. For now, add data manually to your Google Sheet and use the sync buttons to keep data in sync between the app and sheet.', 
+        message: `Import failed: ${error.message}`, 
         type: 'error' 
       })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 8000)
-    }, 1000)
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
+    }
   }
 
   const stats = getTotalStats()
@@ -411,7 +473,7 @@ function App() {
                       disabled={syncStatus.isLoading}
                       className="px-4 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
                     >
-                      Import from Sheet
+                      📥 Import from Sheet
                     </button>
                     <button
                       onClick={testSheetsConnection}

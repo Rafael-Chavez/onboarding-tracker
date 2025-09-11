@@ -299,6 +299,35 @@ export class GoogleSheetsService {
     }
   }
 
+  // Alternative import using Google Apps Script (more reliable)
+  static async importFromGoogleAppsScript() {
+    if (!WEB_APP_URL) {
+      return { 
+        success: false, 
+        error: 'Web App URL not configured. Please follow setup instructions.' 
+      }
+    }
+
+    try {
+      console.log('📥 Importing data via Google Apps Script...')
+      
+      const result = await this.submitData('read', {})
+      
+      if (result.success) {
+        return { 
+          success: true, 
+          onboardings: [], // Apps Script method needs implementation on the server side
+          message: 'Import request sent via Google Apps Script. Due to CORS limitations, please check your Google Sheet manually.' 
+        }
+      } else {
+        return result
+      }
+    } catch (error) {
+      console.error('❌ Error importing via Google Apps Script:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
   static async importFromGoogleSheetsAPI() {
     const SPREADSHEET_ID = '1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo'
     const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY
@@ -311,7 +340,7 @@ export class GoogleSheetsService {
     }
 
     try {
-      const range = 'Onboarding-Tracker!A2:F1000' // Read from row 2 to skip headers
+      const range = 'Onboarding-Tracker!A2:G1000' // Read from row 2 to skip headers, including attendance column G
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`
       
       console.log('📥 Fetching data from Google Sheets API...')
@@ -319,6 +348,17 @@ export class GoogleSheetsService {
       const response = await fetch(url)
       
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Google Sheets API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
+        
+        if (response.status === 403) {
+          throw new Error(`Google Sheets API permission denied. Quick fix:\n1. Open your Google Sheet\n2. Click Share → "Anyone with the link"\n3. Set to "Viewer" permission\n4. Or enable Google Sheets API in Google Cloud Console`)
+        }
+        
         throw new Error(`Google Sheets API error: ${response.status} ${response.statusText}`)
       }
       
@@ -334,10 +374,10 @@ export class GoogleSheetsService {
       
       // Convert Google Sheets data to app format
       const onboardings = data.values.map((row, index) => {
-        const [date, employeeName, clientName, accountNumber, sessionNumber, attendance] = row
+        const [date, employeeName, clientName, accountNumber, sessionNumber, syncedAt, attendance] = row
         
-        // Skip empty rows
-        if (!date && !employeeName && !clientName) {
+        // Skip empty rows or rows with insufficient data
+        if (!date || !employeeName || !clientName || !accountNumber) {
           return null
         }
         
@@ -351,7 +391,18 @@ export class GoogleSheetsService {
           'Erick': 6
         }
         
-        const dateStr = date ? date.toString() : new Date().toISOString().split('T')[0]
+        // Parse date more robustly
+        let dateStr
+        if (date) {
+          const parsedDate = new Date(date.toString())
+          if (!isNaN(parsedDate.getTime())) {
+            dateStr = parsedDate.toISOString().split('T')[0]
+          } else {
+            dateStr = date.toString()
+          }
+        } else {
+          dateStr = new Date().toISOString().split('T')[0]
+        }
         
         return {
           id: Date.now() + index,

@@ -78,19 +78,30 @@ function syncAllRows(sheet, onboardings) {
       console.log('Current headers in row 1:', headers);
     }
     
-    // Set up dropdown validation for attendance column (Column G)
-    setupAttendanceDropdown(sheet);
-    
-    // NEVER TOUCH ROW 1 - Only clear data rows (row 2 and below)
+    // ABSOLUTELY NEVER TOUCH ROW 1 - Only clear data rows (row 2 and below)
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
       console.log('Clearing data rows 2 to', lastRow);
-      // Only clear the data content, not the entire rows
-      // This preserves any formatting or formulas in the header row
+      // Clear only specific columns A-G for data rows, never touching row 1
       const dataRows = lastRow - 1;
-      console.log('Clearing', dataRows, 'data rows, preserving row 1 completely');
-      sheet.getRange(2, 1, dataRows, sheet.getLastColumn()).clearContent();
-      console.log('Data rows content cleared, headers and formatting preserved');
+      console.log('Clearing', dataRows, 'data rows in columns A-G only, row 1 completely untouched');
+      
+      // Clear each column individually to be absolutely sure we don't touch row 1
+      for (let col = 1; col <= 7; col++) {
+        const range = sheet.getRange(2, col, dataRows, 1);
+        range.clearContent();
+        console.log(`Cleared column ${col} (rows 2-${lastRow})`);
+      }
+      
+      console.log('Data rows content cleared, row 1 completely preserved');
+      
+      // Verify that G1 header is still intact
+      const g1Value = sheet.getRange('G1').getValue();
+      console.log('G1 header after clearing:', g1Value);
+      if (!g1Value || g1Value.toString().trim() === '') {
+        console.log('WARNING: G1 header was lost! Restoring it...');
+        sheet.getRange('G1').setValue('Attendance');
+      }
     } else {
       console.log('No data rows to clear');
     }
@@ -120,18 +131,49 @@ function syncAllRows(sheet, onboardings) {
       console.log('Sample complete row:', rows[0]);
       console.log('Column G (attendance) in sample row:', rows[0][6]);
       
+      // Set up dropdown validation FIRST, before writing data
+      setupAttendanceDropdown(sheet);
+      console.log('Dropdown validation applied before data write');
+      
       // Set data starting from row 2, only columns A-G to match our data
       sheet.getRange(2, 1, rows.length, 7).setValues(rows);
       console.log('Data rows added successfully');
       
-      // Verify what was actually written
+      // Verify what was actually written - check multiple rows
       if (rows.length > 0) {
-        const writtenData = sheet.getRange(2, 1, 1, 7).getValues()[0];
-        console.log('First row actually written to sheet:', writtenData);
-        console.log('Attendance column (G) actually contains:', writtenData[6]);
+        const writtenData = sheet.getRange(2, 1, Math.min(rows.length, 3), 7).getValues();
+        console.log('First few rows actually written to sheet:', writtenData);
+        console.log('Attendance column (G) values:');
+        for (let i = 0; i < writtenData.length; i++) {
+          console.log(`Row ${i + 2}: Column G = "${writtenData[i][6]}"`);
+        }
+        
+        // Double check by reading just the attendance column
+        const attendanceColumn = sheet.getRange(2, 7, Math.min(rows.length, 3), 1).getValues();
+        console.log('Direct read of column G (attendance only):', attendanceColumn.flat());
       }
     } else {
       console.log('No onboardings to add');
+    }
+    
+    // Dropdown validation was already set up before data write
+    
+    // Final verification - check that G1 header and G2+ data are intact
+    const finalG1 = sheet.getRange('G1').getValue();
+    console.log('=== FINAL VERIFICATION ===');
+    console.log('Final G1 header value:', finalG1);
+    
+    if (onboardings && onboardings.length > 0) {
+      const finalAttendanceData = sheet.getRange(2, 7, Math.min(onboardings.length, 5), 1).getValues();
+      console.log('Final attendance data in G2-G6:', finalAttendanceData.flat());
+      
+      // Check if any attendance data is missing
+      const emptyCount = finalAttendanceData.flat().filter(val => !val || val.toString().trim() === '').length;
+      if (emptyCount > 0) {
+        console.log(`WARNING: ${emptyCount} attendance cells are empty after sync!`);
+      } else {
+        console.log('✅ All attendance data successfully populated');
+      }
     }
     
     return ContentService
@@ -156,6 +198,7 @@ function setupAttendanceDropdown(sheet) {
     
     // Define the attendance options
     const attendanceOptions = ['pending', 'completed', 'cancelled', 'rescheduled', 'no-show'];
+    console.log('📋 Dropdown options:', attendanceOptions);
     
     // Create data validation rule
     const rule = SpreadsheetApp.newDataValidation()
@@ -164,16 +207,28 @@ function setupAttendanceDropdown(sheet) {
       .setHelpText('Select attendance status: pending, completed, cancelled, rescheduled, or no-show')
       .build();
     
+    console.log('🔧 Data validation rule created');
+    
     // Apply validation to the entire column G (attendance column)
     // Start from row 2 (skip header) and apply to 1000 rows
     const attendanceRange = sheet.getRange('G2:G1000');
-    attendanceRange.setDataValidation(rule);
+    console.log('🎯 Applying validation to range: G2:G1000');
     
+    attendanceRange.setDataValidation(rule);
     console.log('✅ Attendance dropdown validation applied to column G');
-    console.log('📋 Dropdown options:', attendanceOptions);
+    
+    // Test if validation is working by checking a specific cell
+    const testCell = sheet.getRange('G2');
+    const validation = testCell.getDataValidation();
+    if (validation) {
+      console.log('✅ Validation confirmed on G2');
+    } else {
+      console.log('❌ No validation found on G2');
+    }
     
   } catch (error) {
     console.error('❌ Error setting up attendance dropdown:', error);
+    console.error('Error details:', error.toString());
   }
 }
 
