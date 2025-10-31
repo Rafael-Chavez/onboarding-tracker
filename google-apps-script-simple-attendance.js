@@ -33,26 +33,28 @@ function addRow(sheet, onboarding) {
     console.log('=== ADD ROW (SIMPLE) ===');
     console.log('Attendance value:', onboarding.attendance);
     
-    // Simple row addition - just add the data
+    // Add data only to columns A-F, preserving G column (attendance) for manual input
     const row = [
       onboarding.date || '',
       onboarding.employeeName || '',
       onboarding.clientName || '',
       onboarding.accountNumber || '',
       onboarding.sessionNumber || 1,
-      new Date().toISOString(),
-      onboarding.attendance || 'pending'
+      new Date().toISOString()
+      // Column G (Attendance) is preserved - not overwritten
     ];
     
-    console.log('Adding row:', row);
-    console.log('Column G will be:', row[6]);
+    console.log('Adding row (A-F only):', row);
+    console.log('Column G will be preserved and not overwritten');
     
-    sheet.appendRow(row);
+    // Add only columns A-F, leaving G column untouched for manual input
+    const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, row.length);
+    range.setValues([row]);
     
-    // Immediately check what's in G column
+    // Check that G column was left untouched
     const lastRow = sheet.getLastRow();
     const actualValue = sheet.getRange(lastRow, 7).getValue();
-    console.log('Actual value in G' + lastRow + ':', actualValue);
+    console.log('Column G preserved value in row', lastRow + ':', actualValue);
     
     return ContentService
       .createTextOutput(JSON.stringify({ success: true, message: 'Row added' }))
@@ -71,14 +73,15 @@ function syncAllRows(sheet, onboardings) {
     console.log('=== SYNC ALL (SIMPLE) ===');
     console.log('Syncing', onboardings.length, 'records');
     
-    // Clear only data rows (2 and below), never row 1
+    // Clear only columns A-F, preserve column G (attendance) for manual input
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
-      console.log('Clearing rows 2 to', lastRow);
-      sheet.getRange(2, 1, lastRow - 1, 7).clearContent();
+      console.log('Clearing columns A-F only, preserving G column attendance data');
+      // Clear only columns A-F, not touching G
+      sheet.getRange(2, 1, lastRow - 1, 6).clearContent();
     }
     
-    // Add all data
+    // Add all data (A-F only)
     if (onboardings && onboardings.length > 0) {
       const rows = onboardings.map(onboarding => [
         onboarding.date || '',
@@ -86,19 +89,19 @@ function syncAllRows(sheet, onboardings) {
         onboarding.clientName || '',
         onboarding.accountNumber || '',
         onboarding.sessionNumber || 1,
-        new Date().toISOString(),
-        onboarding.attendance || 'pending'  // THIS IS THE KEY - COLUMN G
+        new Date().toISOString()
+        // Column G (Attendance) preserved for manual input
       ]);
       
-      console.log('Sample row to add:', rows[0]);
-      console.log('Column G in sample:', rows[0][6]);
+      console.log('Sample row to add (A-F only):', rows[0]);
+      console.log('Column G will be preserved for manual input');
       
-      // Add all rows at once
-      sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+      // Add all rows at once (columns A-F only)
+      sheet.getRange(2, 1, rows.length, 6).setValues(rows);
       
-      // Verify what's actually there
+      // Verify column G was preserved
       const check = sheet.getRange(2, 7, Math.min(3, rows.length), 1).getValues();
-      console.log('Verification - Column G values:', check.flat());
+      console.log('Verification - Column G preserved values:', check.flat());
     }
     
     return ContentService

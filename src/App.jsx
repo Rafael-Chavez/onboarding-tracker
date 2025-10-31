@@ -42,9 +42,10 @@ function App() {
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
-  const [attendance, setAttendance] = useState('pending')
+  // Removed attendance state - will be managed manually in Google Sheets
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
@@ -73,7 +74,7 @@ function App() {
         clientName: clientName.trim(),
         accountNumber: accountNumber.trim(),
         sessionNumber,
-        attendance,
+        attendance: 'pending', // Default for local storage, but not sent to sheets
         date: selectedDate.toISOString().split('T')[0],
         month: selectedDate.toISOString().slice(0, 7)
       }
@@ -83,11 +84,10 @@ function App() {
       setOnboardings(updatedOnboardings)
       setClientName('')
       setAccountNumber('')
-      setAttendance('pending')
       
       // Auto-sync to Google Sheets if enabled
       if (autoSync) {
-        setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
+        setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets (attendance managed manually)...', type: '' })
         
         try {
           const result = await GoogleSheetsService.appendOnboarding(newOnboarding)
@@ -182,6 +182,46 @@ function App() {
     setCurrentDate(newDate)
   }
 
+  const navigateOverviewMonth = (direction) => {
+    const newDate = new Date(overviewDate)
+    newDate.setMonth(overviewDate.getMonth() + direction)
+    setOverviewDate(newDate)
+  }
+
+  const getMonthlyCompletionStats = (date) => {
+    const monthStr = date.toISOString().slice(0, 7)
+    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+
+    const totalSessions = monthOnboardings.length
+    const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
+    const pending = monthOnboardings.filter(ob => ob.attendance === 'pending').length
+    const cancelled = monthOnboardings.filter(ob => ob.attendance === 'cancelled').length
+    const rescheduled = monthOnboardings.filter(ob => ob.attendance === 'rescheduled').length
+    const noShow = monthOnboardings.filter(ob => ob.attendance === 'no-show').length
+
+    // Group by employee
+    const byEmployee = employees.map(emp => {
+      const empOnboardings = monthOnboardings.filter(ob => ob.employeeId === emp.id)
+      const empCompleted = empOnboardings.filter(ob => ob.attendance === 'completed').length
+      return {
+        ...emp,
+        total: empOnboardings.length,
+        completed: empCompleted
+      }
+    }).filter(emp => emp.total > 0)
+
+    return {
+      totalSessions,
+      completed,
+      pending,
+      cancelled,
+      rescheduled,
+      noShow,
+      byEmployee,
+      completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
+    }
+  }
+
   const getEmployeeColor = (employeeId) => {
     return employees.find(e => e.id === employeeId)?.color || 'from-gray-500 to-gray-600'
   }
@@ -189,12 +229,30 @@ function App() {
   const getTotalStats = () => {
     const currentMonth = new Date().toISOString().slice(0, 7)
     const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
+    const thisMonthCompleted = onboardings.filter(ob =>
+      ob.month === currentMonth && ob.attendance === 'completed'
+    ).length
     const total = onboardings.length
-    return { thisMonth, total }
+    return { thisMonth, thisMonthCompleted, total }
   }
 
+  const getAllCompletedStats = () => {
+    const currentMonth = new Date().toISOString().slice(0, 7)
+    return employees.map(emp => {
+      const completedCount = onboardings.filter(ob =>
+        ob.employeeId === emp.id && ob.attendance === 'completed' && ob.month === currentMonth
+      ).length
+      return {
+        ...emp,
+        completed: completedCount
+      }
+    }).filter(emp => emp.completed > 0) // Only show employees with completions
+  }
+
+  const [showAllCompleted, setShowAllCompleted] = useState(false)
+
   const syncToGoogleSheets = async () => {
-    setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets...', type: '' })
+    setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets (attendance preserved)...', type: '' })
     
     // Debug: Log the data being synced
     console.log('🔄 Syncing onboardings to Google Sheets:')
@@ -346,9 +404,9 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-8">
+      <div className="w-full mb-6">
         <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">
                 Employee Onboarding Tracker
@@ -356,7 +414,7 @@ function App() {
               <div className="flex items-center gap-6 text-sm text-blue-200">
                 <span className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  {stats.thisMonth} this month
+                  {stats.thisMonthCompleted}/{stats.thisMonth} sessions completed
                 </span>
                 <span className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
@@ -364,160 +422,12 @@ function App() {
                 </span>
               </div>
             </div>
-            
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Add New Onboarding Form */}
-              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 flex-1">
-                <h3 className="text-white font-medium mb-3">
-                  Quick Add - {selectedDate.toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    month: 'short', 
-                    day: 'numeric',
-                    year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                  })}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  >
-                    <option value="" className="text-gray-800">Select Employee</option>
-                    {employees.map(employee => (
-                      <option key={employee.id} value={employee.id} className="text-gray-800">
-                        {employee.name}
-                      </option>
-                    ))}
-                  </select>
-                  
-                  <input
-                    type="text"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Client name..."
-                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  />
-                  
-                  <input
-                    type="text"
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addOnboarding()}
-                    placeholder="Account number..."
-                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  />
-                  
-                  <select
-                    value={attendance}
-                    onChange={(e) => setAttendance(e.target.value)}
-                    className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  >
-                    <option value="pending" className="text-gray-800">Pending</option>
-                    <option value="completed" className="text-gray-800">Completed</option>
-                    <option value="cancelled" className="text-gray-800">Cancelled</option>
-                    <option value="rescheduled" className="text-gray-800">Rescheduled</option>
-                    <option value="no-show" className="text-gray-800">No Show</option>
-                  </select>
-                  
-                  <button
-                    onClick={addOnboarding}
-                    disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              {/* Google Sheets Sync */}
-              <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
-                <h3 className="text-white font-medium mb-3 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Google Sheets
-                </h3>
-                
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={syncToGoogleSheets}
-                    disabled={syncStatus.isLoading || onboardings.length === 0}
-                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-medium hover:from-green-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-green-500/25"
-                  >
-                    {syncStatus.isLoading ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Syncing...
-                      </div>
-                    ) : (
-                      `Sync ${onboardings.length} Records`
-                    )}
-                  </button>
-                  
-                  <div className="flex items-center gap-2 px-2">
-                    <input
-                      type="checkbox"
-                      id="autoSync"
-                      checked={autoSync}
-                      onChange={(e) => setAutoSync(e.target.checked)}
-                      className="w-4 h-4 text-green-500 bg-white/10 border-white/30 rounded focus:ring-green-400/50 focus:ring-2"
-                    />
-                    <label htmlFor="autoSync" className="text-sm text-white/80 cursor-pointer">
-                      Auto-sync new entries
-                    </label>
-                  </div>
-                  
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={importFromGoogleSheets}
-                      disabled={syncStatus.isLoading}
-                      className="px-4 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
-                    >
-                      📥 Import from Sheet
-                    </button>
-                    <button
-                      onClick={testSheetsConnection}
-                      disabled={syncStatus.isLoading}
-                      className="px-4 py-1.5 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                      Test Connection
-                    </button>
-                    <button
-                      onClick={async () => {
-                        console.log('Current onboardings data (first 3):', onboardings.slice(0, 3));
-                        console.log('Sample onboarding structure:', onboardings[0]);
-                        const result = await GoogleSheetsService.debugGoogleSheet();
-                        console.log('Debug result:', result);
-                      }}
-                      disabled={syncStatus.isLoading}
-                      className="px-4 py-1.5 text-sm bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                      Debug Sheet
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const result = await GoogleSheetsService.submitData('forceHeaders', {});
-                          console.log('Force headers result:', result);
-                        } catch (error) {
-                          console.error('Force headers error:', error);
-                        }
-                      }}
-                      disabled={syncStatus.isLoading}
-                      className="px-4 py-1.5 text-sm bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    >
-                      Force Headers
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Sync Status Message */}
             {syncStatus.message && (
               <div className={`backdrop-blur-sm rounded-lg border p-3 transition-all duration-300 ${
-                syncStatus.type === 'success' 
-                  ? 'bg-green-500/20 border-green-400/30 text-green-100' 
+                syncStatus.type === 'success'
+                  ? 'bg-green-500/20 border-green-400/30 text-green-100'
                   : syncStatus.type === 'error'
                   ? 'bg-red-500/20 border-red-400/30 text-red-100'
                   : 'bg-blue-500/20 border-blue-400/30 text-blue-100'
@@ -541,12 +451,301 @@ function App() {
         </div>
       </div>
 
-      {/* Main Content - Calendar Left, Tasks Right */}
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Left Side - Calendar */}
-          <div className="lg:col-span-2">
+      {/* Show All Completed Stats Button */}
+      <div className="w-full mb-6">
+        <button
+          onClick={() => setShowAllCompleted(!showAllCompleted)}
+          className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-all duration-200 hover:scale-[1.02] shadow-2xl hover:shadow-green-500/25"
+        >
+          {showAllCompleted ? 'Hide' : 'Show'} This Months Completed Stats
+        </button>
+      </div>
+
+      {/* All Completed Stats Display */}
+      {showAllCompleted && (
+        <div className="w-full mb-6 backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+          <h3 className="text-2xl font-bold text-white mb-6">This Month's Completed Stats</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+            {getAllCompletedStats().map(emp => (
+              <div
+                key={emp.id}
+                className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-6 text-center hover:bg-white/10 transition-all duration-200 hover:scale-105"
+              >
+                <div className="mb-3">
+                  <div className={`w-16 h-16 mx-auto rounded-full bg-gradient-to-r ${emp.color} flex items-center justify-center shadow-lg`}>
+                    <span className="text-white font-bold text-2xl">
+                      {emp.name.charAt(0)}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-lg font-semibold text-white mb-2">{emp.name}</div>
+                <div className="text-4xl font-bold text-green-300">{emp.completed}</div>
+                <div className="text-xs text-white/60 mt-1">Completed</div>
+              </div>
+            ))}
+            {getAllCompletedStats().length === 0 && (
+              <div className="col-span-full text-center py-8 text-white/60">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <p>No completed onboardings this month</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content - Overview Left, Calendar Center, Add Form Right */}
+      <div className="w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+
+          {/* Left Side - Monthly Overview & Scheduled Onboardings */}
+          <div className="xl:col-span-3">
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl mb-6">
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between mb-6">
+                <button
+                  onClick={() => navigateOverviewMonth(-1)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+
+                <h3 className="text-lg font-bold text-white text-center">
+                  {formatDateForDisplay(overviewDate)}
+                </h3>
+
+                <button
+                  onClick={() => navigateOverviewMonth(1)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              {(() => {
+                const stats = getMonthlyCompletionStats(overviewDate)
+
+                return (
+                  <div className="space-y-4">
+                    {/* Overall Stats */}
+                    <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
+                      <h4 className="text-sm font-semibold text-white/80 mb-3">Overall Progress</h4>
+
+                      {/* Completion Rate Circle */}
+                      <div className="flex items-center justify-center mb-4">
+                        <div className="relative w-32 h-32">
+                          <svg className="transform -rotate-90 w-32 h-32">
+                            <circle
+                              cx="64"
+                              cy="64"
+                              r="56"
+                              stroke="currentColor"
+                              strokeWidth="8"
+                              fill="none"
+                              className="text-white/10"
+                            />
+                            <circle
+                              cx="64"
+                              cy="64"
+                              r="56"
+                              stroke="currentColor"
+                              strokeWidth="8"
+                              fill="none"
+                              strokeDasharray={`${2 * Math.PI * 56}`}
+                              strokeDashoffset={`${2 * Math.PI * 56 * (1 - stats.completionRate / 100)}`}
+                              className="text-green-400 transition-all duration-1000"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-3xl font-bold text-white">{stats.completionRate}%</span>
+                            <span className="text-xs text-white/60">Complete</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="bg-green-500/20 rounded-lg p-3 border border-green-400/30">
+                          <div className="text-2xl font-bold text-green-300">{stats.completed}</div>
+                          <div className="text-xs text-green-200">Completed</div>
+                        </div>
+                        <div className="bg-blue-500/20 rounded-lg p-3 border border-blue-400/30">
+                          <div className="text-2xl font-bold text-blue-300">{stats.pending}</div>
+                          <div className="text-xs text-blue-200">Pending</div>
+                        </div>
+                      </div>
+
+                      {stats.cancelled > 0 && (
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div className="bg-red-500/20 rounded-lg p-3 border border-red-400/30">
+                            <div className="text-xl font-bold text-red-300">{stats.cancelled}</div>
+                            <div className="text-xs text-red-200">Cancelled</div>
+                          </div>
+                          {stats.noShow > 0 && (
+                            <div className="bg-orange-500/20 rounded-lg p-3 border border-orange-400/30">
+                              <div className="text-xl font-bold text-orange-300">{stats.noShow}</div>
+                              <div className="text-xs text-orange-200">No Show</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {stats.rescheduled > 0 && (
+                        <div className="bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/30 mb-3">
+                          <div className="text-xl font-bold text-yellow-300">{stats.rescheduled}</div>
+                          <div className="text-xs text-yellow-200">Rescheduled</div>
+                        </div>
+                      )}
+
+                      <div className="pt-3 border-t border-white/10">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-white/60">Total Sessions</span>
+                          <span className="text-xl font-bold text-white">{stats.totalSessions}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* By Employee */}
+                    {stats.byEmployee.length > 0 && (
+                      <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
+                        <h4 className="text-sm font-semibold text-white/80 mb-3">By Employee</h4>
+                        <div className="space-y-3">
+                          {stats.byEmployee.map(emp => (
+                            <div key={emp.id} className="backdrop-blur-sm bg-white/5 rounded-lg p-3 border border-white/10">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${emp.color} flex items-center justify-center shadow-lg`}>
+                                  <span className="text-white font-bold text-xs">
+                                    {emp.name.charAt(0)}
+                                  </span>
+                                </div>
+                                <span className="text-sm font-medium text-white">{emp.name}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="text-white/60">Completed</span>
+                                <span className="font-bold text-green-300">{emp.completed}/{emp.total}</span>
+                              </div>
+                              {/* Progress bar */}
+                              <div className="mt-2 h-2 bg-white/10 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full bg-gradient-to-r ${emp.color} transition-all duration-500`}
+                                  style={{ width: `${emp.total > 0 ? (emp.completed / emp.total) * 100 : 0}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {stats.totalSessions === 0 && (
+                      <div className="text-center py-8 text-white/60">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        </div>
+                        <p className="text-sm">No sessions this month</p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Scheduled Onboardings for Selected Date */}
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-white mb-2">
+                  {formatSelectedDate(selectedDate)}
+                </h3>
+                <div className="text-blue-200 text-sm">
+                  {getSelectedDateOnboardings().length} onboardings scheduled
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {getSelectedDateOnboardings().length > 0 ? (
+                  getSelectedDateOnboardings().map(onboarding => (
+                    <div
+                      key={onboarding.id}
+                      className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="font-medium text-white">{onboarding.clientName}</div>
+                            <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
+                              #{onboarding.sessionNumber}
+                            </span>
+                          </div>
+
+                          <div className="text-sm text-blue-200 mb-2">
+                            Account: {onboarding.accountNumber}
+                          </div>
+
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
+                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                              {onboarding.employeeName}
+                            </div>
+
+                            <select
+                              value={onboarding.attendance || 'pending'}
+                              onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
+                              className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
+                                onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
+                                onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
+                                onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                                onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
+                                onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
+                                'bg-blue-500/20 text-blue-300 border-blue-400/30'
+                              }`}
+                            >
+                              <option value="pending" className="text-gray-800">Pending</option>
+                              <option value="completed" className="text-gray-800">Completed</option>
+                              <option value="cancelled" className="text-gray-800">Cancelled</option>
+                              <option value="rescheduled" className="text-gray-800">Rescheduled</option>
+                              <option value="no-show" className="text-gray-800">No Show</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => deleteOnboarding(onboarding.id)}
+                          className="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-all duration-200"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-white/60">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4v6m0 0v6m6-6v6m6-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </div>
+                    <p>No onboardings scheduled</p>
+                    <p className="text-sm mt-1">Select a date to view onboardings</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Center - Calendar */}
+          <div className="xl:col-span-6">
             <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-6">
                 <button
@@ -573,17 +772,17 @@ function App() {
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-3 mb-4">
+              <div className="grid grid-cols-7 gap-2 sm:gap-3 mb-4">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-sm font-medium text-blue-200 py-2">
+                  <div key={day} className="text-center text-xs sm:text-sm font-medium text-blue-200 py-2">
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-3">
+              <div className="grid grid-cols-7 gap-2 sm:gap-3">
                 {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-16"></div>
+                  <div key={`empty-${i}`} className="h-20 sm:h-24"></div>
                 ))}
                 {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
                   const day = i + 1
@@ -591,26 +790,26 @@ function App() {
                   const dayOnboardings = getOnboardingsForDate(date)
                   const isToday = date.toDateString() === new Date().toDateString()
                   const isSelected = date.toDateString() === selectedDate.toDateString()
-                  
+
                   return (
                     <div
                       key={day}
                       onClick={() => setSelectedDate(date)}
                       className={`
-                        relative h-16 rounded-xl cursor-pointer transition-all duration-200 p-2
+                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-all duration-200 p-2 sm:p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
                         ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
                         ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
                         border border-white/10
                       `}
                     >
-                      <div className={`text-sm font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
+                      <div className={`text-sm sm:text-base font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
                         {day}
                       </div>
-                      
+
                       {dayOnboardings.length > 0 && (
                         <div className="absolute bottom-1 right-1">
-                          <div className="flex items-center justify-center w-5 h-5 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
+                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
                             {dayOnboardings.length}
                           </div>
                         </div>
@@ -622,123 +821,156 @@ function App() {
             </div>
           </div>
 
-          {/* Right Side - Task List for Selected Date */}
-          <div className="lg:col-span-1">
-            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl h-full">
-              <div className="mb-6">
-                <h3 className="text-xl font-bold text-white mb-2">
-                  {formatSelectedDate(selectedDate)}
-                </h3>
-                <div className="text-blue-200 text-sm">
-                  {getSelectedDateOnboardings().length} onboardings scheduled
+          {/* Right Side - Add Onboarding Form & Google Sheets Sync */}
+          <div className="xl:col-span-3 space-y-6">
+            {/* Add New Onboarding Form */}
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+              <h3 className="text-xl font-bold text-white mb-2">
+                Add Onboarding
+              </h3>
+              <p className="text-blue-200 text-sm mb-6">
+                {selectedDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric',
+                  year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                })}
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-white text-sm font-medium mb-2 block">Employee</label>
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  >
+                    <option value="" className="text-gray-800">Select Employee</option>
+                    {employees.map(employee => (
+                      <option key={employee.id} value={employee.id} className="text-gray-800">
+                        {employee.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-white text-sm font-medium mb-2 block">Client Name</label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Enter client name..."
+                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-white text-sm font-medium mb-2 block">Account Number</label>
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
+                    placeholder="Enter account number..."
+                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                  />
+                </div>
+
+                <button
+                  onClick={addOnboarding}
+                  disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                >
+                  Add Onboarding
+                </button>
+              </div>
+            </div>
+
+            {/* Google Sheets Sync */}
+            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+              <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Google Sheets
+              </h3>
+              <p className="text-blue-200 text-sm mb-6">Sync data with Google Sheets</p>
+
+              <div className="space-y-3">
+                <button
+                  disabled={true}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-green-400/50 opacity-50 cursor-not-allowed transition-all duration-200 shadow-lg pointer-events-none"
+                >
+                  Sync {onboardings.length} Records
+                </button>
+
+                <div className="flex items-center gap-2 px-2">
+                  <input
+                    type="checkbox"
+                    id="autoSync"
+                    checked={autoSync}
+                    onChange={(e) => setAutoSync(e.target.checked)}
+                    className="w-4 h-4 text-green-500 bg-white/10 border-white/30 rounded focus:ring-green-400/50 focus:ring-2"
+                  />
+                  <label htmlFor="autoSync" className="text-sm text-white/80 cursor-pointer">
+                    Auto-sync new entries
+                  </label>
+                </div>
+
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <button
+                    onClick={importFromGoogleSheets}
+                    disabled={syncStatus.isLoading}
+                    className="w-full px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    📥 Import from Sheet
+                  </button>
+                  <button
+                    onClick={testSheetsConnection}
+                    disabled={syncStatus.isLoading}
+                    className="w-full px-4 py-2 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    Test Connection
+                  </button>
+
+                  <details className="pt-2">
+                    <summary className="text-xs text-white/60 cursor-pointer hover:text-white/80">Debug Tools</summary>
+                    <div className="mt-2 space-y-2">
+                      <button
+                        onClick={async () => {
+                          console.log('Current onboardings data (first 3):', onboardings.slice(0, 3));
+                          console.log('Sample onboarding structure:', onboardings[0]);
+                          const result = await GoogleSheetsService.debugGoogleSheet();
+                          console.log('Debug result:', result);
+                        }}
+                        disabled={syncStatus.isLoading}
+                        className="w-full px-4 py-1.5 text-xs bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        Debug Sheet
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const result = await GoogleSheetsService.submitData('forceHeaders', {});
+                            console.log('Force headers result:', result);
+                          } catch (error) {
+                            console.error('Force headers error:', error);
+                          }
+                        }}
+                        disabled={syncStatus.isLoading}
+                        className="w-full px-4 py-1.5 text-xs bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        Force Headers
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {getSelectedDateOnboardings().length > 0 ? (
-                  getSelectedDateOnboardings().map(onboarding => (
-                    <div
-                      key={onboarding.id}
-                      className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="font-medium text-white">{onboarding.clientName}</div>
-                            <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
-                              #{onboarding.sessionNumber}
-                            </span>
-                          </div>
-                          
-                          <div className="text-sm text-blue-200 mb-2">
-                            Account: {onboarding.accountNumber}
-                          </div>
-                          
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
-                              <div className="w-2 h-2 bg-white rounded-full"></div>
-                              {onboarding.employeeName}
-                            </div>
-                            
-                            <select
-                              value={onboarding.attendance || 'pending'}
-                              onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
-                              className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
-                                onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
-                                onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
-                                onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
-                                onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
-                                onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
-                                'bg-blue-500/20 text-blue-300 border-blue-400/30'
-                              }`}
-                            >
-                              <option value="pending" className="text-gray-800">Pending</option>
-                              <option value="completed" className="text-gray-800">Completed</option>
-                              <option value="cancelled" className="text-gray-800">Cancelled</option>
-                              <option value="rescheduled" className="text-gray-800">Rescheduled</option>
-                              <option value="no-show" className="text-gray-800">No Show</option>
-                            </select>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => deleteOnboarding(onboarding.id)}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-all duration-200"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-white/60">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4v6m0 0v6m6-6v6m6-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </div>
-                    <p>No onboardings scheduled</p>
-                    <p className="text-sm mt-1">Select a date to view onboardings</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Bottom Stats Section */}
-        <div className="mt-8">
-          <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-6">Team Performance</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              {employees.map(employee => {
-                const currentMonth = new Date().toISOString().slice(0, 7)
-                const monthlyCount = onboardings.filter(ob => 
-                  ob.employeeId === employee.id && ob.month === currentMonth
-                ).length
-                const totalCount = onboardings.filter(ob => ob.employeeId === employee.id).length
-                
-                return (
-                  <div key={employee.id} className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105">
-                    <div className={`w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r ${employee.color} flex items-center justify-center shadow-lg`}>
-                      <span className="text-white font-bold text-lg">
-                        {employee.name.charAt(0)}
-                      </span>
-                    </div>
-                    <h4 className="font-semibold text-white text-center mb-2">{employee.name}</h4>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-400 mb-1">{monthlyCount}</div>
-                      <div className="text-xs text-blue-200">this month</div>
-                      <div className="text-sm text-white/60 mt-1">{totalCount} total</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

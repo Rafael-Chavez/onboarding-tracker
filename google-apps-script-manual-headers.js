@@ -34,22 +34,24 @@ function addRow(sheet, onboarding) {
     console.log('Received onboarding data:', JSON.stringify(onboarding));
     console.log('Attendance value received:', onboarding.attendance);
     
-    // Just add data assuming your headers are in order:
-    // Date | Employee | Client Name | Account Number | Session # | Synced At | Attendance
+    // Add data only to columns A-F, preserving G column (attendance) for manual input
+    // Date | Employee | Client Name | Account Number | Session # | Synced At
     const row = [
       onboarding.date || '',                    // Column A
       onboarding.employeeName || '',            // Column B  
       onboarding.clientName || '',              // Column C
       onboarding.accountNumber || '',           // Column D
       onboarding.sessionNumber || 1,           // Column E
-      new Date().toISOString(),                 // Column F - SYNCED AT
-      onboarding.attendance || 'pending'       // Column G - ATTENDANCE
+      new Date().toISOString()                  // Column F - SYNCED AT
+      // Column G (Attendance) is preserved - not overwritten
     ];
     
-    console.log('Row array to add:', row);
-    console.log('Column G (Attendance) will be:', row[6]);
+    console.log('Row array to add (A-F only):', row);
+    console.log('Column G (Attendance) will be preserved and not overwritten');
     
-    sheet.appendRow(row);
+    // Append only columns A-F, leaving G column untouched for manual input
+    const range = sheet.getRange(sheet.getLastRow() + 1, 1, 1, row.length);
+    range.setValues([row]);
     console.log('Row added successfully');
     
     // Set up dropdown validation for attendance column
@@ -78,22 +80,32 @@ function syncAllRows(sheet, onboardings) {
       console.log('Current headers in row 1:', headers);
     }
     
-    // ABSOLUTELY NEVER TOUCH ROW 1 - Only clear data rows (row 2 and below)
+    // PRESERVE G COLUMN - Only clear columns A-F, keep G column (attendance) for manual input
     const lastRow = sheet.getLastRow();
+    let existingAttendanceData = [];
+    
     if (lastRow > 1) {
-      console.log('Clearing data rows 2 to', lastRow);
-      // Clear only specific columns A-G for data rows, never touching row 1
-      const dataRows = lastRow - 1;
-      console.log('Clearing', dataRows, 'data rows in columns A-G only, row 1 completely untouched');
+      console.log('Preserving G column attendance data and clearing A-F columns only');
       
-      // Clear each column individually to be absolutely sure we don't touch row 1
-      for (let col = 1; col <= 7; col++) {
+      // First, save existing attendance data from column G
+      if (lastRow > 1) {
+        const attendanceRange = sheet.getRange(2, 7, lastRow - 1, 1);
+        existingAttendanceData = attendanceRange.getValues().flat();
+        console.log('Saved existing attendance data:', existingAttendanceData.slice(0, 5));
+      }
+      
+      // Clear only columns A-F for data rows, preserving row 1 and column G
+      const dataRows = lastRow - 1;
+      console.log('Clearing', dataRows, 'data rows in columns A-F only, preserving G column');
+      
+      // Clear columns A-F individually, never touching G
+      for (let col = 1; col <= 6; col++) {
         const range = sheet.getRange(2, col, dataRows, 1);
         range.clearContent();
         console.log(`Cleared column ${col} (rows 2-${lastRow})`);
       }
       
-      console.log('Data rows content cleared, row 1 completely preserved');
+      console.log('Data rows A-F cleared, row 1 and column G completely preserved');
       
       // Verify that G1 header is still intact
       const g1Value = sheet.getRange('G1').getValue();
@@ -112,31 +124,44 @@ function syncAllRows(sheet, onboardings) {
       console.log('Sample onboarding object:', JSON.stringify(onboardings[0]));
       console.log('Attendance value in first onboarding:', onboardings[0]?.attendance);
       
-      const rows = onboardings.map(onboarding => {
+      const rows = onboardings.map((onboarding, index) => {
         const row = [
           onboarding.date || '',                    // Column A
           onboarding.employeeName || '',            // Column B  
           onboarding.clientName || '',              // Column C
           onboarding.accountNumber || '',           // Column D
           onboarding.sessionNumber || 1,           // Column E
-          new Date().toISOString(),                 // Column F - SYNCED AT
-          onboarding.attendance || 'pending'       // Column G - ATTENDANCE
+          new Date().toISOString()                  // Column F - SYNCED AT
+          // Column G (Attendance) preserved from existing data or left empty for manual input
         ];
-        console.log('Row being created:', row);
-        console.log('Attendance in this row (index 6):', row[6]);
+        console.log('Row being created (A-F only):', row);
+        console.log('Column G will be preserved from existing data or left empty for manual input');
         return row;
       });
       
-      console.log('Adding', rows.length, 'data rows starting at row 2');
-      console.log('Sample complete row:', rows[0]);
-      console.log('Column G (attendance) in sample row:', rows[0][6]);
+      console.log('Adding', rows.length, 'data rows starting at row 2 (columns A-F only)');
+      console.log('Sample complete row (A-F):', rows[0]);
+      console.log('Column G will be preserved/left empty for manual input');
       
       // Set up dropdown validation FIRST, before writing data
       setupAttendanceDropdown(sheet);
       console.log('Dropdown validation applied before data write');
       
-      // Set data starting from row 2, only columns A-G to match our data
-      sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+      // Set data starting from row 2, only columns A-F to preserve column G
+      sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+      
+      // Restore existing attendance data where it exists
+      if (existingAttendanceData.length > 0) {
+        console.log('Restoring existing attendance data to column G');
+        const maxRows = Math.min(rows.length, existingAttendanceData.length);
+        const attendanceToRestore = existingAttendanceData.slice(0, maxRows);
+        
+        if (attendanceToRestore.length > 0) {
+          const restoreRange = sheet.getRange(2, 7, attendanceToRestore.length, 1);
+          restoreRange.setValues(attendanceToRestore.map(value => [value]));
+          console.log('Restored', attendanceToRestore.length, 'attendance values');
+        }
+      }
       console.log('Data rows added successfully');
       
       // Verify what was actually written - check multiple rows

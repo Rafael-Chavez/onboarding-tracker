@@ -177,7 +177,7 @@ export class GoogleSheetsService {
 
       return { 
         success: true, 
-        message: 'Test data submitted with attendance: "pending". Check Google Apps Script logs and your Google Sheet column F for attendance data.' 
+        message: 'Test data submitted (columns A-F only). Column G (attendance) preserved for manual input.' 
       }
     } catch (error) {
       console.error('❌ Error testing Google Sheets connection:', error)
