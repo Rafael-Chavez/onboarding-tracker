@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
+import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
+
+// Make debug functions globally available
+if (typeof window !== 'undefined') {
+  window.debugOnboardingStats = debugOnboardingStats
+  window.debugLocalStorage = debugLocalStorage
+}
 
 function App() {
   const [employees] = useState([

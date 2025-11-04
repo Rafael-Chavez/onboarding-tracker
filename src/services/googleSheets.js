@@ -376,14 +376,17 @@ export class GoogleSheetsService {
       }
       
       // Convert Google Sheets data to app format
+      console.log('📊 Raw data from Google Sheets:', data.values.length, 'rows')
+
       const onboardings = data.values.map((row, index) => {
         const [date, employeeName, clientName, accountNumber, sessionNumber, syncedAt, attendance] = row
-        
+
         // Skip empty rows or rows with insufficient data
         if (!date || !employeeName || !clientName || !accountNumber) {
+          console.log(`⏭️ Skipping row ${index + 2}: Missing required fields`, { date, employeeName, clientName, accountNumber })
           return null
         }
-        
+
         // Map employee names to IDs
         const employeeMap = {
           'Rafael': 1,
@@ -393,21 +396,38 @@ export class GoogleSheetsService {
           'Steve': 5,
           'Erick': 6
         }
-        
-        // Parse date more robustly
+
+        // Parse date more robustly - handle various date formats from Google Sheets
         let dateStr
         if (date) {
-          const parsedDate = new Date(date.toString())
+          let parsedDate
+
+          // Try parsing as-is first
+          parsedDate = new Date(date.toString())
+
+          // If that fails, try parsing MM/DD/YYYY format
+          if (isNaN(parsedDate.getTime()) && typeof date === 'string') {
+            const parts = date.split('/')
+            if (parts.length === 3) {
+              // MM/DD/YYYY format
+              const month = parseInt(parts[0]) - 1 // Month is 0-indexed
+              const day = parseInt(parts[1])
+              const year = parseInt(parts[2])
+              parsedDate = new Date(year, month, day)
+            }
+          }
+
           if (!isNaN(parsedDate.getTime())) {
             dateStr = parsedDate.toISOString().split('T')[0]
           } else {
+            // Fallback: assume date is already in YYYY-MM-DD format
             dateStr = date.toString()
           }
         } else {
           dateStr = new Date().toISOString().split('T')[0]
         }
-        
-        return {
+
+        const onboarding = {
           id: Date.now() + index,
           date: dateStr,
           employeeId: employeeMap[employeeName] || 1,
@@ -415,12 +435,30 @@ export class GoogleSheetsService {
           clientName: clientName || '',
           accountNumber: accountNumber || '',
           sessionNumber: sessionNumber ? parseInt(sessionNumber) || 1 : 1,
-          attendance: attendance || 'pending',
+          attendance: attendance && attendance.trim() !== '' ? attendance.toLowerCase().trim() : 'pending',
           month: dateStr.slice(0, 7)
         }
+
+        // Debug log for October 2025 entries
+        if (dateStr.startsWith('2025-10')) {
+          console.log(`📅 October 2025 entry found:`, {
+            date: dateStr,
+            month: onboarding.month,
+            employee: employeeName,
+            client: clientName,
+            attendance: onboarding.attendance
+          })
+        }
+
+        return onboarding
       }).filter(Boolean) // Remove null entries
-      
+
+      // Count October 2025 entries
+      const octoberCount = onboardings.filter(ob => ob.month === '2025-10').length
+      const octoberCompleted = onboardings.filter(ob => ob.month === '2025-10' && ob.attendance === 'completed').length
+
       console.log(`✅ Successfully imported ${onboardings.length} onboardings`)
+      console.log(`📅 October 2025: ${octoberCount} total, ${octoberCompleted} completed`)
       
       return {
         success: true,
