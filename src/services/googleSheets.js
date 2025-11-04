@@ -347,14 +347,8 @@ export class GoogleSheetsService {
 
       console.log('📥 Fetching data from Google Sheets API...')
 
-      const response = await fetch(url, {
-        cache: 'no-store', // Prevent caching
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      })
+      // Don't use custom headers or cache options - they trigger CORS preflight
+      const response = await fetch(url)
       
       if (!response.ok) {
         const errorText = await response.text()
