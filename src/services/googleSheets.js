@@ -341,11 +341,20 @@ export class GoogleSheetsService {
 
     try {
       const range = 'Onboarding-Tracker!A2:G1000' // Read from row 2 to skip headers, including attendance column G
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`
-      
+      // Add cache-busting timestamp to prevent browser caching
+      const timestamp = new Date().getTime()
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}&_=${timestamp}`
+
       console.log('📥 Fetching data from Google Sheets API...')
-      
-      const response = await fetch(url)
+
+      const response = await fetch(url, {
+        cache: 'no-store', // Prevent caching
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
       
       if (!response.ok) {
         const errorText = await response.text()

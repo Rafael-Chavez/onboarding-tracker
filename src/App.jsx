@@ -252,6 +252,8 @@ function App() {
   const [showAllCompleted, setShowAllCompleted] = useState(false)
   const [completedStatsDate, setCompletedStatsDate] = useState(new Date())
   const [selectedEmployeeHistory, setSelectedEmployeeHistory] = useState(null)
+  const [employeeHistoryViewMode, setEmployeeHistoryViewMode] = useState('all') // 'all' or 'monthly'
+  const [employeeHistoryMonth, setEmployeeHistoryMonth] = useState(new Date())
 
   const navigateCompletedStatsMonth = (direction) => {
     const newDate = new Date(completedStatsDate)
@@ -259,9 +261,16 @@ function App() {
     setCompletedStatsDate(newDate)
   }
 
-  const getEmployeeSessions = (employeeId) => {
-    return onboardings
-      .filter(ob => ob.employeeId === employeeId)
+  const getEmployeeSessions = (employeeId, viewMode = 'all', monthDate = null) => {
+    let filtered = onboardings.filter(ob => ob.employeeId === employeeId)
+
+    // Apply monthly filter if in monthly mode
+    if (viewMode === 'monthly' && monthDate) {
+      const monthStr = monthDate.toISOString().slice(0, 7)
+      filtered = filtered.filter(ob => ob.month === monthStr)
+    }
+
+    return filtered
       .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date descending (newest first)
       .map(ob => ({
         ...ob,
@@ -272,6 +281,12 @@ function App() {
           day: 'numeric'
         })
       }))
+  }
+
+  const navigateEmployeeHistoryMonth = (direction) => {
+    const newDate = new Date(employeeHistoryMonth)
+    newDate.setMonth(employeeHistoryMonth.getMonth() + direction)
+    setEmployeeHistoryMonth(newDate)
   }
 
   const syncToGoogleSheets = async () => {
@@ -490,7 +505,7 @@ function App() {
           <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             {(() => {
               const employee = employees.find(e => e.id === selectedEmployeeHistory)
-              const sessions = getEmployeeSessions(selectedEmployeeHistory)
+              const sessions = getEmployeeSessions(selectedEmployeeHistory, employeeHistoryViewMode, employeeHistoryMonth)
 
               return (
                 <>
@@ -503,17 +518,67 @@ function App() {
                       </div>
                       <div>
                         <h2 className="text-2xl font-bold text-white">{employee?.name}'s Sessions</h2>
-                        <p className="text-blue-200 text-sm">{sessions.length} total sessions</p>
+                        <p className="text-blue-200 text-sm">{sessions.length} {employeeHistoryViewMode === 'monthly' ? 'sessions this month' : 'total sessions'}</p>
                       </div>
                     </div>
                     <button
-                      onClick={() => setSelectedEmployeeHistory(null)}
+                      onClick={() => {
+                        setSelectedEmployeeHistory(null)
+                        setEmployeeHistoryViewMode('all')
+                        setEmployeeHistoryMonth(new Date())
+                      }}
                       className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
+                  </div>
+
+                  {/* View Mode Selector and Month Navigation */}
+                  <div className="mb-6 space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <label className="text-white text-sm font-medium mb-2 block">View Mode</label>
+                        <select
+                          value={employeeHistoryViewMode}
+                          onChange={(e) => setEmployeeHistoryViewMode(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                        >
+                          <option value="all" className="text-gray-800">All Time</option>
+                          <option value="monthly" className="text-gray-800">Monthly View</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Month Navigation - Only show in monthly mode */}
+                    {employeeHistoryViewMode === 'monthly' && (
+                      <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
+                        <div className="flex items-center justify-between">
+                          <button
+                            onClick={() => navigateEmployeeHistoryMonth(-1)}
+                            className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                          </button>
+
+                          <h3 className="text-xl font-bold text-white">
+                            {formatDateForDisplay(employeeHistoryMonth)}
+                          </h3>
+
+                          <button
+                            onClick={() => navigateEmployeeHistoryMonth(1)}
+                            className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
