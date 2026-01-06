@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { GoogleSheetsService } from '../services/googleSheets';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
@@ -9,26 +10,34 @@ export default function TeamDashboard() {
   const [myOnboardings, setMyOnboardings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [employees] = useState([
+    { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
+    { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
+    { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
+    { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
+    { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
+    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
+  ]);
 
-  // Fetch user's onboardings
-  const fetchMyOnboardings = async () => {
+  // Load onboardings from localStorage
+  const loadFromStorage = (key, defaultValue) => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.error(`Error loading ${key} from localStorage:`, error);
+      return defaultValue;
+    }
+  };
+
+  // Fetch user's onboardings from localStorage
+  const fetchMyOnboardings = () => {
     if (!employeeId) return;
 
     try {
-      const token = await currentUser.getIdToken();
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/onboardings?employee_id=${employeeId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setMyOnboardings(data);
-      }
+      const allOnboardings = loadFromStorage('onboardings', []);
+      const myOnboardings = allOnboardings.filter(ob => ob.employeeId === employeeId);
+      setMyOnboardings(myOnboardings);
     } catch (err) {
       console.error('Error fetching onboardings:', err);
     }
@@ -36,6 +45,16 @@ export default function TeamDashboard() {
 
   useEffect(() => {
     fetchMyOnboardings();
+
+    // Listen for storage changes from other tabs/windows (like admin dashboard)
+    const handleStorageChange = (e) => {
+      if (e.key === 'onboardings') {
+        fetchMyOnboardings();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, [employeeId]);
 
   const handleSubmit = async (e) => {
@@ -44,30 +63,48 @@ export default function TeamDashboard() {
     setMessage('');
 
     try {
-      const token = await currentUser.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/onboardings`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          employeeId: employeeId,
-          clientName: clientName,
-          accountNumber: accountNumber,
-          date: selectedDate
-        })
-      });
+      // Load all existing onboardings
+      const allOnboardings = loadFromStorage('onboardings', []);
 
-      if (response.ok) {
+      // Find existing onboardings for this client to determine session number
+      const clientOnboardings = allOnboardings.filter(ob =>
+        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
+      );
+      const sessionNumber = clientOnboardings.length + 1;
+
+      // Create the new onboarding entry
+      const newOnboarding = {
+        id: Date.now(),
+        employeeId: employeeId,
+        employeeName: employees.find(e => e.id === employeeId)?.name,
+        clientName: clientName.trim(),
+        accountNumber: accountNumber.trim(),
+        sessionNumber,
+        attendance: 'pending',
+        date: selectedDate,
+        month: selectedDate.slice(0, 7)
+      };
+
+      // Update localStorage
+      const updatedOnboardings = [...allOnboardings, newOnboarding];
+      localStorage.setItem('onboardings', JSON.stringify(updatedOnboardings));
+
+      // Sync to Google Sheets
+      setMessage('Syncing to Google Sheets...');
+      try {
+        await GoogleSheetsService.appendOnboarding(newOnboarding);
         setMessage('Onboarding session logged successfully!');
-        setClientName('');
-        setAccountNumber('');
-        fetchMyOnboardings(); // Refresh the list
-      } else {
-        const error = await response.json();
-        setMessage(`Error: ${error.message || 'Failed to log session'}`);
+      } catch (syncError) {
+        console.error('Google Sheets sync error:', syncError);
+        setMessage('Session logged locally. Google Sheets sync may have failed.');
       }
+
+      // Clear form
+      setClientName('');
+      setAccountNumber('');
+
+      // Refresh the list
+      fetchMyOnboardings();
     } catch (err) {
       console.error('Error logging onboarding:', err);
       setMessage('Error: Failed to log session');

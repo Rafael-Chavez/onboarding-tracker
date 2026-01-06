@@ -23,42 +23,46 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch user data from backend
+  // User role mapping (stored in localStorage)
+  const USER_ROLES_KEY = 'userRoles';
+
+  // Get user roles from localStorage
+  const getUserRoles = () => {
+    try {
+      const stored = localStorage.getItem(USER_ROLES_KEY);
+      return stored ? JSON.parse(stored) : getDefaultUserRoles();
+    } catch (error) {
+      console.error('Error loading user roles:', error);
+      return getDefaultUserRoles();
+    }
+  };
+
+  // Default user role configuration
+  const getDefaultUserRoles = () => ({
+    'rchavez@deconetwork.com': { role: 'admin', employeeId: 1 },
+    'jim@deconetwork.com': { role: 'team', employeeId: 3 },
+    'marc@deconetwork.com': { role: 'team', employeeId: 4 },
+    'danreb@deconetwork.com': { role: 'team', employeeId: 2 },
+    'steve@deconetwork.com': { role: 'team', employeeId: 5 },
+    'erick@deconetwork.com': { role: 'team', employeeId: 6 }
+  });
+
+  // Fetch user data from localStorage
   const fetchUserData = async (firebaseUser) => {
     try {
-      const token = await firebaseUser.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const userRoles = getUserRoles();
+      const userData = userRoles[firebaseUser.email.toLowerCase()];
 
-      if (response.ok) {
-        const userData = await response.json();
+      if (userData) {
         setUserRole(userData.role);
         setEmployeeId(userData.employeeId);
         return userData;
       } else {
-        // User might not exist in database yet, create them
-        const createResponse = await fetch(`${import.meta.env.VITE_API_URL}/users`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            firebaseUid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || firebaseUser.email
-          })
-        });
-
-        if (createResponse.ok) {
-          const newUserData = await createResponse.json();
-          setUserRole(newUserData.role);
-          setEmployeeId(newUserData.employeeId);
-          return newUserData;
-        }
+        // Default to team role if not configured
+        console.warn(`User ${firebaseUser.email} not found in role mapping, defaulting to team role`);
+        setUserRole('team');
+        setEmployeeId(null);
+        return { role: 'team', employeeId: null };
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
@@ -90,6 +94,15 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   };
+
+  // Initialize user roles in localStorage on first load
+  useEffect(() => {
+    const stored = localStorage.getItem(USER_ROLES_KEY);
+    if (!stored) {
+      localStorage.setItem(USER_ROLES_KEY, JSON.stringify(getDefaultUserRoles()));
+      console.log('User roles initialized in localStorage');
+    }
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
