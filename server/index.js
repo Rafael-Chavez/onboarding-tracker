@@ -3,12 +3,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import employeesRouter from './routes/employees.js';
 import onboardingsRouter from './routes/onboardings.js';
+import usersRouter from './routes/users.js';
 import pool from './config/database.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Make database pool available to routes
+app.set('db', pool);
 
 // Middleware
 app.use(cors());
@@ -32,6 +36,7 @@ app.get('/health', async (req, res) => {
 });
 
 // API Routes
+app.use('/api/users', usersRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/onboardings', onboardingsRouter);
 
@@ -42,6 +47,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      users: '/api/users',
       employees: '/api/employees',
       onboardings: '/api/onboardings'
     }

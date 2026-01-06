@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment variables and secrets
+.env
+firebase-service-account.json
+
+# Windows-specific files
+nul
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

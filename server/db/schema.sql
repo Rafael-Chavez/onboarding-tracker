@@ -7,6 +7,20 @@
 -- Drop tables if they exist (for clean setup)
 DROP TABLE IF EXISTS onboardings CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Create users table for authentication
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  firebase_uid VARCHAR(255) NOT NULL UNIQUE,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  role VARCHAR(50) NOT NULL DEFAULT 'team',
+  employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  display_name VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_role CHECK (role IN ('admin', 'team'))
+);
 
 -- Create employees table
 CREATE TABLE employees (
@@ -33,6 +47,9 @@ CREATE TABLE onboardings (
 );
 
 -- Create indexes for better query performance
+CREATE INDEX idx_users_firebase_uid ON users(firebase_uid);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_employee_id ON users(employee_id);
 CREATE INDEX idx_onboardings_employee_id ON onboardings(employee_id);
 CREATE INDEX idx_onboardings_date ON onboardings(date);
 CREATE INDEX idx_onboardings_month ON onboardings(month);
@@ -59,6 +76,9 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers for updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON employees
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
