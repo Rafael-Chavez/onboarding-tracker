@@ -41,9 +41,9 @@ export const AuthProvider = ({ children }) => {
   const getDefaultUserRoles = () => ({
     'rchavez@deconetwork.com': { role: 'admin', employeeId: 1 },
     'jparica@deconetwork.com': { role: 'team', employeeId: 3 },
-    'marc@deconetwork.com': { role: 'team', employeeId: 4 },
+    'mcruz@deconetwork.com': { role: 'team', employeeId: 4 },
     'danreb@deconetwork.com': { role: 'team', employeeId: 2 },
-    'steve@deconetwork.com': { role: 'team', employeeId: 5 },
+    'sclar@deconetwork.com': { role: 'team', employeeId: 5 },
     'eortiz@deconetwork.com': { role: 'team', employeeId: 6 }
   });
 
