@@ -40,11 +40,11 @@ export const AuthProvider = ({ children }) => {
   // Default user role configuration
   const getDefaultUserRoles = () => ({
     'rchavez@deconetwork.com': { role: 'admin', employeeId: 1 },
-    'jim@deconetwork.com': { role: 'team', employeeId: 3 },
+    'jparica@deconetwork.com': { role: 'team', employeeId: 3 },
     'marc@deconetwork.com': { role: 'team', employeeId: 4 },
     'danreb@deconetwork.com': { role: 'team', employeeId: 2 },
     'steve@deconetwork.com': { role: 'team', employeeId: 5 },
-    'erick@deconetwork.com': { role: 'team', employeeId: 6 }
+    'eortiz@deconetwork.com': { role: 'team', employeeId: 6 }
   });
 
   // Fetch user data from localStorage
