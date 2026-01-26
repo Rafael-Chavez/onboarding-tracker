@@ -6,10 +6,12 @@ export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
   const [clientName, setClientName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [notes, setNotes] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [myOnboardings, setMyOnboardings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' });
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
@@ -42,6 +44,52 @@ export default function TeamDashboard() {
       console.error('Error fetching onboardings:', err);
     }
   };
+
+  // Calculate stats
+  const calculateStats = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = new Date().toISOString().slice(0, 7);
+
+    const todayCount = myOnboardings.filter(ob => ob.date === today).length;
+    const monthCount = myOnboardings.filter(ob => ob.month === currentMonth).length;
+    const totalCount = myOnboardings.length;
+
+    // Calculate streak (consecutive days with sessions)
+    const sortedDates = [...new Set(myOnboardings.map(ob => ob.date))].sort().reverse();
+    let streak = 0;
+    let currentDate = new Date();
+
+    for (let i = 0; i < sortedDates.length; i++) {
+      const sessionDate = new Date(sortedDates[i] + 'T00:00:00');
+      const daysDiff = Math.floor((currentDate - sessionDate) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff === streak) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    // Find most frequent client
+    const clientCounts = {};
+    myOnboardings.forEach(ob => {
+      clientCounts[ob.clientName] = (clientCounts[ob.clientName] || 0) + 1;
+    });
+
+    const mostFrequentClient = Object.keys(clientCounts).length > 0
+      ? Object.entries(clientCounts).sort((a, b) => b[1] - a[1])[0]
+      : null;
+
+    return {
+      todayCount,
+      monthCount,
+      totalCount,
+      streak,
+      mostFrequentClient: mostFrequentClient ? { name: mostFrequentClient[0], count: mostFrequentClient[1] } : null
+    };
+  };
+
+  const stats = calculateStats();
 
   useEffect(() => {
     fetchMyOnboardings();
@@ -82,7 +130,8 @@ export default function TeamDashboard() {
         sessionNumber,
         attendance: 'pending',
         date: selectedDate,
-        month: selectedDate.slice(0, 7)
+        month: selectedDate.slice(0, 7),
+        notes: notes.trim() || undefined  // Only add notes if provided
       };
 
       // Update localStorage
@@ -102,6 +151,7 @@ export default function TeamDashboard() {
       // Clear form
       setClientName('');
       setAccountNumber('');
+      setNotes('');
 
       // Refresh the list
       fetchMyOnboardings();
@@ -112,6 +162,53 @@ export default function TeamDashboard() {
       setLoading(false);
       setTimeout(() => setMessage(''), 5000);
     }
+  };
+
+  // Manual sync function for team members
+  const handleManualSync = async () => {
+    setSyncStatus({ isLoading: true, message: 'Syncing your sessions to Google Sheets...', type: 'info' });
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Sync all of the team member's sessions
+      for (const onboarding of myOnboardings) {
+        try {
+          await GoogleSheetsService.appendOnboarding(onboarding);
+          successCount++;
+        } catch (error) {
+          console.error(`Error syncing session ${onboarding.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (errorCount === 0) {
+        setSyncStatus({
+          isLoading: false,
+          message: `Successfully synced ${successCount} session${successCount !== 1 ? 's' : ''} to Google Sheets!`,
+          type: 'success'
+        });
+      } else {
+        setSyncStatus({
+          isLoading: false,
+          message: `Synced ${successCount} session${successCount !== 1 ? 's' : ''}, but ${errorCount} failed. Check console for details.`,
+          type: 'warning'
+        });
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus({
+        isLoading: false,
+        message: 'Failed to sync sessions. Please try again.',
+        type: 'error'
+      });
+    }
+
+    // Clear status message after 5 seconds
+    setTimeout(() => {
+      setSyncStatus({ isLoading: false, message: '', type: '' });
+    }, 5000);
   };
 
   const formatDate = (dateString) => {
@@ -155,6 +252,42 @@ export default function TeamDashboard() {
             </button>
           </div>
         </div>
+
+        {/* Quick Stats Dashboard */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
+            <div className="text-gray-400 text-sm mb-1">Today</div>
+            <div className="text-3xl font-bold text-white">{stats.todayCount}</div>
+            <div className="text-gray-300 text-xs mt-1">sessions</div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
+            <div className="text-gray-400 text-sm mb-1">This Month</div>
+            <div className="text-3xl font-bold text-blue-400">{stats.monthCount}</div>
+            <div className="text-gray-300 text-xs mt-1">sessions</div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
+            <div className="text-gray-400 text-sm mb-1">All Time</div>
+            <div className="text-3xl font-bold text-purple-400">{stats.totalCount}</div>
+            <div className="text-gray-300 text-xs mt-1">sessions</div>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
+            <div className="text-gray-400 text-sm mb-1">Streak</div>
+            <div className="text-3xl font-bold text-green-400">{stats.streak}</div>
+            <div className="text-gray-300 text-xs mt-1">{stats.streak === 1 ? 'day' : 'days'}</div>
+          </div>
+        </div>
+
+        {/* Most Frequent Client */}
+        {stats.mostFrequentClient && (
+          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 mb-6 border border-white/20">
+            <div className="text-gray-400 text-sm mb-1">Most Frequent Client</div>
+            <div className="text-xl font-bold text-white">{stats.mostFrequentClient.name}</div>
+            <div className="text-gray-300 text-sm mt-1">{stats.mostFrequentClient.count} sessions</div>
+          </div>
+        )}
 
         {/* Log New Session Form */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border border-white/20">
@@ -205,6 +338,21 @@ export default function TeamDashboard() {
               />
             </div>
 
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-200 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="e.g., Client asked about feature X, Follow-up needed, etc."
+              />
+              <p className="text-gray-400 text-xs mt-1">Add any important details or reminders about this session</p>
+            </div>
+
             {message && (
               <div className={`rounded-lg p-3 border ${
                 message.startsWith('Error')
@@ -227,7 +375,32 @@ export default function TeamDashboard() {
 
         {/* My Recent Sessions */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-white/20">
-          <h2 className="text-xl font-bold text-white mb-4">My Recent Sessions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">My Recent Sessions</h2>
+            {myOnboardings.length > 0 && (
+              <button
+                onClick={handleManualSync}
+                disabled={syncStatus.isLoading}
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+              >
+                <svg className={`w-4 h-4 ${syncStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {syncStatus.isLoading ? 'Syncing...' : 'Sync to Sheets'}
+              </button>
+            )}
+          </div>
+
+          {syncStatus.message && (
+            <div className={`rounded-lg p-3 mb-4 border ${
+              syncStatus.type === 'success' ? 'bg-green-500/10 border-green-500/50 text-green-300' :
+              syncStatus.type === 'error' ? 'bg-red-500/10 border-red-500/50 text-red-300' :
+              syncStatus.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-300' :
+              'bg-blue-500/10 border-blue-500/50 text-blue-300'
+            }`}>
+              {syncStatus.message}
+            </div>
+          )}
 
           {myOnboardings.length === 0 ? (
             <p className="text-gray-400 text-center py-8">
@@ -254,6 +427,13 @@ export default function TeamDashboard() {
                         <p className="text-gray-400 text-sm">
                           Session #{onboarding.sessionNumber}
                         </p>
+                        {onboarding.notes && (
+                          <div className="mt-2 p-2 bg-white/5 rounded border border-white/10">
+                            <p className="text-gray-300 text-sm">
+                              <span className="text-gray-400 font-medium">Notes:</span> {onboarding.notes}
+                            </p>
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-gray-300 text-sm mb-2">

@@ -26,7 +26,12 @@ Type the account number for this client.
 - Click the date field to change it if needed
 - Select the date when the onboarding session actually happened
 
-### Step 4: Submit
+### Step 4: Add Notes (Optional)
+- Add any important details or reminders about the session
+- Examples: "Client asked about feature X", "Follow-up needed", etc.
+- This field is optional - leave it blank if not needed
+
+### Step 5: Submit
 Click the "Log Session" button to save your entry.
 
 ## What Happens Next?
@@ -36,6 +41,17 @@ Click the "Log Session" button to save your entry.
 - Your manager can see it in the master calendar
 - The session status starts as "pending" and may be updated by your manager
 
+## Your Performance Stats
+
+At the top of your dashboard, you'll see quick stats:
+- **Today**: Sessions logged today
+- **This Month**: Total sessions this month
+- **All Time**: Total sessions you've ever logged
+- **Streak**: Consecutive days with sessions (keep it going!)
+- **Most Frequent Client**: Which client you work with most
+
+These stats update automatically as you log sessions.
+
 ## Viewing Your Sessions
 
 Below the submission form, you'll see your 10 most recent sessions, showing:
@@ -44,6 +60,7 @@ Below the submission form, you'll see your 10 most recent sessions, showing:
 - Session number (automatically tracked)
 - Date of the session
 - Current status (pending, completed, etc.)
+- Your notes (if you added any)
 
 ## Session Status Meanings
 
@@ -54,6 +71,20 @@ Below the submission form, you'll see your 10 most recent sessions, showing:
 - **No Show**: Client didn't attend
 
 Note: You can log sessions, but only your manager can update the status.
+
+## Syncing to Google Sheets
+
+Your sessions automatically sync to Google Sheets when you submit them. However, if you want to manually sync all your sessions:
+
+1. Look for the **"Sync to Sheets"** button at the top of your Recent Sessions
+2. Click the button
+3. Wait for the sync to complete (you'll see a spinning icon)
+4. A success message will appear when done
+
+**When to use manual sync:**
+- You want to make sure all your sessions are backed up
+- Auto-sync failed and you want to retry
+- You're preparing for a report or review
 
 ## Tips
 
