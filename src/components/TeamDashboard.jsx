@@ -172,28 +172,46 @@ export default function TeamDashboard() {
     try {
       const result = await GoogleSheetsService.importFromGoogleSheetsAPI();
 
+      console.log('📥 Import result:', result);
+      console.log('👤 Current employee ID:', employeeId);
+      console.log('📊 Total sessions from Sheets:', result.onboardings?.length || 0);
+
       if (result.success && result.onboardings) {
         // Filter to only this team member's sessions
-        const mySessions = result.onboardings.filter(ob => ob.employeeId === employeeId);
+        const mySessions = result.onboardings.filter(ob => {
+          const matches = ob.employeeId === employeeId;
+          console.log(`Checking: ${ob.employeeName} (ID: ${ob.employeeId}) vs your ID (${employeeId}): ${matches ? '✅' : '❌'}`);
+          return matches;
+        });
+
+        console.log(`✅ Found ${mySessions.length} sessions for you`);
 
         if (mySessions.length === 0) {
           setImportStatus({
             isLoading: false,
-            message: 'No sessions found for you in Google Sheets.',
+            message: `No sessions found for you (ID: ${employeeId}) in Google Sheets.`,
             type: 'warning'
           });
         } else {
           // Load existing onboardings from localStorage
           const existingOnboardings = loadFromStorage('onboardings', []);
+          console.log(`💾 Existing sessions in localStorage: ${existingOnboardings.length}`);
 
           // Merge with existing (avoid duplicates by checking date + client + account)
           const existingKeys = new Set(
             existingOnboardings.map(ob => `${ob.date}-${ob.clientName}-${ob.accountNumber}`)
           );
 
-          const newSessions = mySessions.filter(ob =>
-            !existingKeys.has(`${ob.date}-${ob.clientName}-${ob.accountNumber}`)
-          );
+          const newSessions = mySessions.filter(ob => {
+            const key = `${ob.date}-${ob.clientName}-${ob.accountNumber}`;
+            const isDuplicate = existingKeys.has(key);
+            if (isDuplicate) {
+              console.log(`⏭️ Skipping duplicate: ${key}`);
+            }
+            return !isDuplicate;
+          });
+
+          console.log(`📦 New sessions to import: ${newSessions.length}`);
 
           if (newSessions.length === 0) {
             setImportStatus({
@@ -205,6 +223,8 @@ export default function TeamDashboard() {
             // Add new sessions to localStorage
             const updatedOnboardings = [...existingOnboardings, ...newSessions];
             localStorage.setItem('onboardings', JSON.stringify(updatedOnboardings));
+
+            console.log(`💾 Saved ${updatedOnboardings.length} total sessions to localStorage`);
 
             setImportStatus({
               isLoading: false,
