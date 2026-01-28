@@ -12,6 +12,7 @@ export default function TeamDashboard() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' });
+  const [importStatus, setImportStatus] = useState({ isLoading: false, message: '', type: '' });
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
@@ -162,6 +163,79 @@ export default function TeamDashboard() {
       setLoading(false);
       setTimeout(() => setMessage(''), 5000);
     }
+  };
+
+  // Import sessions from Google Sheets
+  const handleImportSessions = async () => {
+    setImportStatus({ isLoading: true, message: 'Importing your sessions from Google Sheets...', type: 'info' });
+
+    try {
+      const result = await GoogleSheetsService.importFromGoogleSheetsAPI();
+
+      if (result.success && result.onboardings) {
+        // Filter to only this team member's sessions
+        const mySessions = result.onboardings.filter(ob => ob.employeeId === employeeId);
+
+        if (mySessions.length === 0) {
+          setImportStatus({
+            isLoading: false,
+            message: 'No sessions found for you in Google Sheets.',
+            type: 'warning'
+          });
+        } else {
+          // Load existing onboardings from localStorage
+          const existingOnboardings = loadFromStorage('onboardings', []);
+
+          // Merge with existing (avoid duplicates by checking date + client + account)
+          const existingKeys = new Set(
+            existingOnboardings.map(ob => `${ob.date}-${ob.clientName}-${ob.accountNumber}`)
+          );
+
+          const newSessions = mySessions.filter(ob =>
+            !existingKeys.has(`${ob.date}-${ob.clientName}-${ob.accountNumber}`)
+          );
+
+          if (newSessions.length === 0) {
+            setImportStatus({
+              isLoading: false,
+              message: 'All your sessions are already up to date!',
+              type: 'success'
+            });
+          } else {
+            // Add new sessions to localStorage
+            const updatedOnboardings = [...existingOnboardings, ...newSessions];
+            localStorage.setItem('onboardings', JSON.stringify(updatedOnboardings));
+
+            setImportStatus({
+              isLoading: false,
+              message: `Successfully imported ${newSessions.length} new session${newSessions.length !== 1 ? 's' : ''} from Google Sheets!`,
+              type: 'success'
+            });
+
+            // Refresh the list
+            fetchMyOnboardings();
+          }
+        }
+      } else {
+        setImportStatus({
+          isLoading: false,
+          message: result.error || 'Failed to import sessions. Please try again.',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      setImportStatus({
+        isLoading: false,
+        message: 'Failed to import sessions. Please try again.',
+        type: 'error'
+      });
+    }
+
+    // Clear status message after 7 seconds
+    setTimeout(() => {
+      setImportStatus({ isLoading: false, message: '', type: '' });
+    }, 7000);
   };
 
   // Manual sync function for team members
@@ -375,21 +449,44 @@ export default function TeamDashboard() {
 
         {/* My Recent Sessions */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-white/20">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h2 className="text-xl font-bold text-white">My Recent Sessions</h2>
-            {myOnboardings.length > 0 && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleManualSync}
-                disabled={syncStatus.isLoading}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                onClick={handleImportSessions}
+                disabled={importStatus.isLoading}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
               >
-                <svg className={`w-4 h-4 ${syncStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <svg className={`w-4 h-4 ${importStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                {syncStatus.isLoading ? 'Syncing...' : 'Sync to Sheets'}
+                {importStatus.isLoading ? 'Importing...' : 'Import Sessions'}
               </button>
-            )}
+              {myOnboardings.length > 0 && (
+                <button
+                  onClick={handleManualSync}
+                  disabled={syncStatus.isLoading}
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                >
+                  <svg className={`w-4 h-4 ${syncStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {syncStatus.isLoading ? 'Syncing...' : 'Sync to Sheets'}
+                </button>
+              )}
+            </div>
           </div>
+
+          {importStatus.message && (
+            <div className={`rounded-lg p-3 mb-4 border ${
+              importStatus.type === 'success' ? 'bg-green-500/10 border-green-500/50 text-green-300' :
+              importStatus.type === 'error' ? 'bg-red-500/10 border-red-500/50 text-red-300' :
+              importStatus.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-300' :
+              'bg-blue-500/10 border-blue-500/50 text-blue-300'
+            }`}>
+              {importStatus.message}
+            </div>
+          )}
 
           {syncStatus.message && (
             <div className={`rounded-lg p-3 mb-4 border ${

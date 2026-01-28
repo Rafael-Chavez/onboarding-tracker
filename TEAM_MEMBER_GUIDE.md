@@ -72,11 +72,33 @@ Below the submission form, you'll see your 10 most recent sessions, showing:
 
 Note: You can log sessions, but only your manager can update the status.
 
+## Importing Your Sessions from Google Sheets
+
+If you clear your browser cache or use a new device, you can import all your sessions from Google Sheets:
+
+1. Look for the **"Import Sessions"** button (blue) at the top of your Recent Sessions
+2. Click the button
+3. Wait for the import to complete (you'll see a spinning icon)
+4. Your sessions will be loaded from Google Sheets
+5. A success message will show how many sessions were imported
+
+**What it does:**
+- Pulls ALL your sessions from Google Sheets
+- Only imports YOUR sessions (filtered by your name)
+- Avoids duplicates (won't import sessions you already have)
+- Updates your stats and recent sessions list
+
+**When to use import:**
+- First time logging in on a new device
+- After clearing browser cache/data
+- If your sessions disappeared
+- To restore your session history
+
 ## Syncing to Google Sheets
 
 Your sessions automatically sync to Google Sheets when you submit them. However, if you want to manually sync all your sessions:
 
-1. Look for the **"Sync to Sheets"** button at the top of your Recent Sessions
+1. Look for the **"Sync to Sheets"** button (green) at the top of your Recent Sessions
 2. Click the button
 3. Wait for the sync to complete (you'll see a spinning icon)
 4. A success message will appear when done
