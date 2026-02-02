@@ -11,7 +11,6 @@ export default function TeamDashboard() {
   const [myOnboardings, setMyOnboardings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' });
   const [importStatus, setImportStatus] = useState({ isLoading: false, message: '', type: '' });
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
@@ -258,53 +257,6 @@ export default function TeamDashboard() {
     }, 7000);
   };
 
-  // Manual sync function for team members
-  const handleManualSync = async () => {
-    setSyncStatus({ isLoading: true, message: 'Syncing your sessions to Google Sheets...', type: 'info' });
-
-    try {
-      let successCount = 0;
-      let errorCount = 0;
-
-      // Sync all of the team member's sessions
-      for (const onboarding of myOnboardings) {
-        try {
-          await GoogleSheetsService.appendOnboarding(onboarding);
-          successCount++;
-        } catch (error) {
-          console.error(`Error syncing session ${onboarding.id}:`, error);
-          errorCount++;
-        }
-      }
-
-      if (errorCount === 0) {
-        setSyncStatus({
-          isLoading: false,
-          message: `Successfully synced ${successCount} session${successCount !== 1 ? 's' : ''} to Google Sheets!`,
-          type: 'success'
-        });
-      } else {
-        setSyncStatus({
-          isLoading: false,
-          message: `Synced ${successCount} session${successCount !== 1 ? 's' : ''}, but ${errorCount} failed. Check console for details.`,
-          type: 'warning'
-        });
-      }
-    } catch (error) {
-      console.error('Sync error:', error);
-      setSyncStatus({
-        isLoading: false,
-        message: 'Failed to sync sessions. Please try again.',
-        type: 'error'
-      });
-    }
-
-    // Clear status message after 5 seconds
-    setTimeout(() => {
-      setSyncStatus({ isLoading: false, message: '', type: '' });
-    }, 5000);
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -471,30 +423,16 @@ export default function TeamDashboard() {
         <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-white/20">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h2 className="text-xl font-bold text-white">My Recent Sessions</h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleImportSessions}
-                disabled={importStatus.isLoading}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-              >
-                <svg className={`w-4 h-4 ${importStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {importStatus.isLoading ? 'Importing...' : 'Import Sessions'}
-              </button>
-              {myOnboardings.length > 0 && (
-                <button
-                  onClick={handleManualSync}
-                  disabled={syncStatus.isLoading}
-                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                >
-                  <svg className={`w-4 h-4 ${syncStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  {syncStatus.isLoading ? 'Syncing...' : 'Sync to Sheets'}
-                </button>
-              )}
-            </div>
+            <button
+              onClick={handleImportSessions}
+              disabled={importStatus.isLoading}
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+            >
+              <svg className={`w-4 h-4 ${importStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              {importStatus.isLoading ? 'Importing...' : 'Import Sessions'}
+            </button>
           </div>
 
           {importStatus.message && (
@@ -505,17 +443,6 @@ export default function TeamDashboard() {
               'bg-blue-500/10 border-blue-500/50 text-blue-300'
             }`}>
               {importStatus.message}
-            </div>
-          )}
-
-          {syncStatus.message && (
-            <div className={`rounded-lg p-3 mb-4 border ${
-              syncStatus.type === 'success' ? 'bg-green-500/10 border-green-500/50 text-green-300' :
-              syncStatus.type === 'error' ? 'bg-red-500/10 border-red-500/50 text-red-300' :
-              syncStatus.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-300' :
-              'bg-blue-500/10 border-blue-500/50 text-blue-300'
-            }`}>
-              {syncStatus.message}
             </div>
           )}
 
