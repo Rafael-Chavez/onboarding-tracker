@@ -25,11 +25,24 @@ export const AuthProvider = ({ children }) => {
 
   // User role mapping (stored in localStorage)
   const USER_ROLES_KEY = 'userRoles';
+  const USER_ROLES_VERSION_KEY = 'userRolesVersion';
+  const CURRENT_VERSION = '2'; // Increment this when roles change
 
   // Get user roles from localStorage
   const getUserRoles = () => {
     try {
+      const storedVersion = localStorage.getItem(USER_ROLES_VERSION_KEY);
       const stored = localStorage.getItem(USER_ROLES_KEY);
+
+      // If version doesn't match, use default roles (forces update)
+      if (storedVersion !== CURRENT_VERSION) {
+        console.log('🔄 User roles outdated, updating to latest version...');
+        const defaultRoles = getDefaultUserRoles();
+        localStorage.setItem(USER_ROLES_KEY, JSON.stringify(defaultRoles));
+        localStorage.setItem(USER_ROLES_VERSION_KEY, CURRENT_VERSION);
+        return defaultRoles;
+      }
+
       return stored ? JSON.parse(stored) : getDefaultUserRoles();
     } catch (error) {
       console.error('Error loading user roles:', error);
