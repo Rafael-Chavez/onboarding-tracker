@@ -170,6 +170,19 @@ export default function TeamDashboard() {
 
   // Import sessions from Supabase (refresh from Sales Dashboard data)
   const handleImportSessions = async () => {
+    // Check if employeeId is valid
+    if (!employeeId) {
+      setImportStatus({
+        isLoading: false,
+        message: 'Error: Your account is not properly configured. Please contact an administrator to set up your employee ID.',
+        type: 'error'
+      });
+      setTimeout(() => {
+        setImportStatus({ isLoading: false, message: '', type: '' });
+      }, 7000);
+      return;
+    }
+
     setImportStatus({ isLoading: true, message: 'Refreshing your sessions from database...', type: 'info' });
 
     try {

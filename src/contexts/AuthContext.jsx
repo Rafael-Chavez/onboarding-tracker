@@ -54,12 +54,15 @@ export const AuthProvider = ({ children }) => {
       const userData = userRoles[firebaseUser.email.toLowerCase()];
 
       if (userData) {
+        console.log(`✅ User ${firebaseUser.email} authenticated - Role: ${userData.role}, Employee ID: ${userData.employeeId}`);
         setUserRole(userData.role);
         setEmployeeId(userData.employeeId);
         return userData;
       } else {
         // Default to team role if not configured
-        console.warn(`User ${firebaseUser.email} not found in role mapping, defaulting to team role`);
+        console.error(`❌ User ${firebaseUser.email} NOT found in role mapping!`);
+        console.error('Available emails:', Object.keys(userRoles));
+        console.error('Please add this email to AuthContext.jsx or use a configured email.');
         setUserRole('team');
         setEmployeeId(null);
         return { role: 'team', employeeId: null };
