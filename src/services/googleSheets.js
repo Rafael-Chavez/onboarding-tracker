@@ -126,18 +126,13 @@ export class GoogleSheetsService {
     }
 
     try {
-      // Try fetch method first, fallback to form method if needed
-      const result = await this.submitData('syncAll', { onboardings })
+      // Use form method directly - it's more reliable than fetch with no-cors
+      console.log('📤 Syncing via form submission method...')
+      const result = await this.submitFormData('syncAll', { onboardings })
       return { ...result, syncedCount: onboardings.length }
     } catch (error) {
       console.error('Error syncing all data to Google Sheets:', error)
-      // Fallback to form method
-      try {
-        const fallbackResult = await this.submitFormData('syncAll', { onboardings })
-        return { ...fallbackResult, syncedCount: onboardings.length }
-      } catch (fallbackError) {
-        return { success: false, error: fallbackError.message }
-      }
+      return { success: false, error: error.message }
     }
   }
 

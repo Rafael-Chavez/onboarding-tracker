@@ -1,5 +1,6 @@
-const SPREADSHEET_ID = '1QeyMXxjLQOJwd7NlhgEoAvy7ixNCZrwL7-_QOybppXo';
-const SHEET_NAME = 'Onboarding-Tracker';
+const SPREADSHEET_ID = '1w-nd8VetkWHCJsv0BTBbkidO8DcE0arynUfad4_4Eac';
+const SHEET_NAME = 'Sheet1';
+const SCRIPT_VERSION = 'v2.0-6COLUMNS'; // Version identifier to verify deployment
 
 function doPost(e) {
   try {
@@ -28,13 +29,20 @@ function doPost(e) {
     
     console.log('Parsed action:', action);
     console.log('Parsed data:', JSON.stringify(data));
-    
+
     // Get the spreadsheet
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(SHEET_NAME);
-    
+
     // Write debug info to cell H1 to verify script is running
-    sheet.getRange('H1').setValue(`Last execution: ${new Date().toISOString()} - Action: ${action}`);
+    sheet.getRange('H1').setValue(`${SCRIPT_VERSION} - Last: ${new Date().toISOString()} - Action: ${action}`);
+
+    // Write detailed debug info to cell I1
+    if (data.onboardings) {
+      sheet.getRange('I1').setValue(`Received ${data.onboardings.length} records`);
+    } else {
+      sheet.getRange('I1').setValue(`No onboardings array found in data`);
+    }
     
     if (action === 'append') {
       return appendOnboarding(sheet, data.onboarding);
