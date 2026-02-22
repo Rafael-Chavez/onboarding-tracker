@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
+import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
+import NightShiftBanner from './components/NightShiftBanner'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -38,14 +40,7 @@ function App() {
     }
   }
 
-  const [onboardings, setOnboardings] = useState(() => {
-    const data = loadFromStorage('onboardings', [])
-    // Migrate old data to include attendance field
-    return data.map(ob => ({
-      ...ob,
-      attendance: ob.attendance || 'pending'
-    }))
-  })
+  const [onboardings, setOnboardings] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -56,10 +51,29 @@ function App() {
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
-  // Save onboardings to localStorage whenever it changes
+  // Load onboardings from Supabase on mount
   useEffect(() => {
-    saveToStorage('onboardings', onboardings)
-  }, [onboardings])
+    const fetchOnboardings = async () => {
+      const result = await SupabaseService.getAllOnboardings()
+      if (result.success) {
+        setOnboardings(result.onboardings)
+      } else {
+        console.error('Error loading onboardings:', result.error)
+      }
+    }
+
+    fetchOnboardings()
+
+    // Subscribe to real-time changes
+    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
+      console.log('Real-time update detected:', payload)
+      fetchOnboardings()
+    })
+
+    return () => {
+      SupabaseService.unsubscribe(subscription)
+    }
+  }, [])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -69,86 +83,123 @@ function App() {
   const addOnboarding = async () => {
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
-      const clientOnboardings = onboardings.filter(ob => 
+      const clientOnboardings = onboardings.filter(ob =>
         ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
       )
       const sessionNumber = clientOnboardings.length + 1
-      
+
       const newOnboarding = {
-        id: Date.now(),
         employeeId: parseInt(selectedEmployee),
         employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
         clientName: clientName.trim(),
         accountNumber: accountNumber.trim(),
         sessionNumber,
-        attendance: 'pending', // Default for local storage, but not sent to sheets
+        attendance: 'pending',
         date: selectedDate.toISOString().split('T')[0],
         month: selectedDate.toISOString().slice(0, 7)
       }
-      
-      // Update local state
-      const updatedOnboardings = [...onboardings, newOnboarding]
-      setOnboardings(updatedOnboardings)
-      setClientName('')
-      setAccountNumber('')
-      
-      // Auto-sync to Google Sheets if enabled
-      if (autoSync) {
-        setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets (attendance managed manually)...', type: '' })
-        
-        try {
-          const result = await GoogleSheetsService.appendOnboarding(newOnboarding)
-          
-          if (result.success) {
-            setSyncStatus({ 
-              isLoading: false, 
-              message: 'Successfully synced to Google Sheets!', 
-              type: 'success' 
+
+      // Save to Supabase
+      const result = await SupabaseService.createOnboarding(newOnboarding)
+
+      if (result.success) {
+        // Clear form
+        setClientName('')
+        setAccountNumber('')
+
+        // Auto-sync to Google Sheets if enabled
+        if (autoSync) {
+          setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
+
+          try {
+            await GoogleSheetsService.appendOnboarding({
+              ...newOnboarding,
+              id: result.onboarding.id
+            })
+
+            setSyncStatus({
+              isLoading: false,
+              message: 'Successfully synced to Google Sheets!',
+              type: 'success'
             })
             setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
-          } else {
-            setSyncStatus({ 
-              isLoading: false, 
-              message: `Auto-sync failed: ${result.error}`, 
-              type: 'error' 
+          } catch (error) {
+            setSyncStatus({
+              isLoading: false,
+              message: `Auto-sync to Sheets failed: ${error.message}`,
+              type: 'error'
             })
             setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
           }
-        } catch (error) {
-          setSyncStatus({ 
-            isLoading: false, 
-            message: `Auto-sync failed: ${error.message}`, 
-            type: 'error' 
-          })
-          setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
         }
+
+        // Real-time subscription will update the UI automatically
+      } else {
+        setSyncStatus({
+          isLoading: false,
+          message: `Failed to add session: ${result.error}`,
+          type: 'error'
+        })
+        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
       }
     }
   }
 
-  const deleteOnboarding = (id) => {
-    setOnboardings(onboardings.filter(ob => ob.id !== id))
+  const deleteOnboarding = async (id) => {
+    const result = await SupabaseService.deleteOnboarding(id)
+    if (!result.success) {
+      console.error('Error deleting onboarding:', result.error)
+      setSyncStatus({
+        isLoading: false,
+        message: `Failed to delete: ${result.error}`,
+        type: 'error'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
+    }
+    // Real-time subscription will update the UI automatically
+  }
+
+  const approveCompletion = async (id) => {
+    const result = await SupabaseService.approveCompletion(id)
+    if (!result.success) {
+      console.error('Error approving completion:', result.error)
+    }
+  }
+
+  const rejectCompletion = async (id) => {
+    const result = await SupabaseService.rejectCompletion(id)
+    if (!result.success) {
+      console.error('Error rejecting completion:', result.error)
+    }
   }
 
   const updateOnboardingAttendance = async (id, newAttendance) => {
-    // Update local state
-    const updatedOnboardings = onboardings.map(ob => 
-      ob.id === id ? { ...ob, attendance: newAttendance } : ob
-    )
-    setOnboardings(updatedOnboardings)
+    // Update in Supabase
+    const result = await SupabaseService.updateOnboardingStatus(id, newAttendance)
 
-    // Auto-sync to Google Sheets if enabled
-    if (autoSync) {
-      try {
-        // Find the updated onboarding
-        const updatedOnboarding = updatedOnboardings.find(ob => ob.id === id)
-        if (updatedOnboarding) {
-          console.log('🔄 Syncing attendance update to Google Sheets:', updatedOnboarding)
-          await GoogleSheetsService.updateOnboarding(updatedOnboarding)
+    if (result.success) {
+      // Auto-sync to Google Sheets if enabled
+      if (autoSync) {
+        try {
+          console.log('🔄 Syncing attendance update to Google Sheets:', result.onboarding)
+          await GoogleSheetsService.updateOnboarding({
+            id: result.onboarding.id,
+            employeeId: result.onboarding.employeeId,
+            employeeName: result.onboarding.employeeName,
+            clientName: result.onboarding.clientName,
+            accountNumber: result.onboarding.accountNumber,
+            sessionNumber: result.onboarding.sessionNumber,
+            date: result.onboarding.date,
+            month: result.onboarding.month,
+            attendance: result.onboarding.attendance
+          })
+        } catch (error) {
+          console.error('Error syncing attendance update to Sheets:', error)
         }
-      } catch (error) {
-        console.error('Error syncing attendance update:', error)
       }
+      // Real-time subscription will update the UI automatically
+    } else {
+      console.error('Error updating attendance:', result.error)
     }
   }
 
@@ -371,20 +422,20 @@ function App() {
 
   const importFromGoogleSheets = async () => {
     setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
-    
+
     try {
       // Try API method first, fallback to Apps Script method
       let result = await GoogleSheetsService.importFromGoogleSheetsAPI()
-      
+
       // If API method fails with 403, try alternative approach
       if (!result.success && result.error.includes('403')) {
         console.log('🔄 API method failed, trying alternative approach...')
         setSyncStatus({ isLoading: true, message: 'API access denied, trying alternative method...', type: '' })
         result = await GoogleSheetsService.importFromGoogleAppsScript()
       }
-      
+
       if (result.success) {
-        // If we got data, merge it with existing data
+        // If we got data, merge it with existing data in Supabase
         if (result.onboardings && result.onboardings.length > 0) {
           // Create a map of existing onboardings to avoid duplicates
           const existingMap = new Map()
@@ -392,7 +443,7 @@ function App() {
             const key = `${ob.date}-${ob.clientName}-${ob.accountNumber}`
             existingMap.set(key, ob)
           })
-          
+
           // Add imported onboardings that don't already exist
           const newOnboardings = []
           result.onboardings.forEach(importedOb => {
@@ -401,44 +452,57 @@ function App() {
               newOnboardings.push(importedOb)
             }
           })
-          
+
           if (newOnboardings.length > 0) {
-            const mergedOnboardings = [...onboardings, ...newOnboardings]
-            setOnboardings(mergedOnboardings)
-            setSyncStatus({ 
-              isLoading: false, 
-              message: `Successfully imported ${newOnboardings.length} new onboardings from Google Sheets!`, 
-              type: 'success' 
+            // Import to Supabase
+            let successCount = 0
+            let errorCount = 0
+
+            for (const onboarding of newOnboardings) {
+              const importResult = await SupabaseService.createOnboarding(onboarding)
+              if (importResult.success) {
+                successCount++
+              } else {
+                errorCount++
+                console.error('Failed to import:', onboarding, importResult.error)
+              }
+            }
+
+            setSyncStatus({
+              isLoading: false,
+              message: `Successfully imported ${successCount} new onboarding${successCount !== 1 ? 's' : ''} from Google Sheets!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+              type: 'success'
             })
+            // Real-time subscription will update the UI automatically
           } else {
-            setSyncStatus({ 
-              isLoading: false, 
-              message: 'No new data to import - all onboardings already exist locally.', 
-              type: 'success' 
+            setSyncStatus({
+              isLoading: false,
+              message: 'No new data to import - all onboardings already exist.',
+              type: 'success'
             })
           }
         } else {
-          setSyncStatus({ 
-            isLoading: false, 
-            message: result.message || 'No data found in Google Sheet', 
-            type: 'success' 
+          setSyncStatus({
+            isLoading: false,
+            message: result.message || 'No data found in Google Sheet',
+            type: 'success'
           })
         }
-        
+
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
       } else {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: `Import failed: ${result.error}`, 
-          type: 'error' 
+        setSyncStatus({
+          isLoading: false,
+          message: `Import failed: ${result.error}`,
+          type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
       }
     } catch (error) {
-      setSyncStatus({ 
-        isLoading: false, 
-        message: `Import failed: ${error.message}`, 
-        type: 'error' 
+      setSyncStatus({
+        isLoading: false,
+        message: `Import failed: ${error.message}`,
+        type: 'error'
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
     }
@@ -495,6 +559,55 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Night Shift Tracker */}
+      <NightShiftBanner />
+
+      {/* Pending Completion Approvals Alert */}
+      {(() => {
+        const pendingApprovals = onboardings.filter(ob => ob.attendance === 'pending_approval')
+        if (pendingApprovals.length === 0) return null
+        return (
+          <div className="w-full mb-6 backdrop-blur-md bg-amber-500/10 rounded-2xl border border-amber-400/30 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-3 h-3 bg-amber-400 rounded-full animate-pulse shadow-lg shadow-amber-400/50" />
+              <h3 className="text-lg font-bold text-amber-300">
+                Completion Requests — {pendingApprovals.length} Awaiting Your Approval
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {pendingApprovals.map(ob => (
+                <div key={ob.id} className="flex items-center justify-between gap-4 bg-white/5 rounded-xl border border-amber-400/20 p-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-white">{ob.clientName}</span>
+                      <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">Session #{ob.sessionNumber}</span>
+                      <span className="text-xs text-amber-300/80">by {ob.employeeName}</span>
+                    </div>
+                    <div className="text-sm text-white/50 mt-1">
+                      Account {ob.accountNumber} · {new Date(ob.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => rejectCompletion(ob.id)}
+                      className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-all"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => approveCompletion(ob.id)}
+                      className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-all"
+                    >
+                      Approve ✓
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
@@ -912,30 +1025,51 @@ function App() {
                             Account: {onboarding.accountNumber}
                           </div>
 
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
                               <div className="w-2 h-2 bg-white rounded-full"></div>
                               {onboarding.employeeName}
                             </div>
 
-                            <select
-                              value={onboarding.attendance || 'pending'}
-                              onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
-                              className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
-                                onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
-                                onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
-                                onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
-                                onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
-                                onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
-                                'bg-blue-500/20 text-blue-300 border-blue-400/30'
-                              }`}
-                            >
-                              <option value="pending" className="text-gray-800">Pending</option>
-                              <option value="completed" className="text-gray-800">Completed</option>
-                              <option value="cancelled" className="text-gray-800">Cancelled</option>
-                              <option value="rescheduled" className="text-gray-800">Rescheduled</option>
-                              <option value="no-show" className="text-gray-800">No Show</option>
-                            </select>
+                            {onboarding.attendance === 'pending_approval' ? (
+                              // Admin approve/reject UI for pending completion requests
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-1 text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded-lg">
+                                  Awaiting Approval
+                                </span>
+                                <button
+                                  onClick={() => rejectCompletion(onboarding.id)}
+                                  className="px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-all"
+                                >
+                                  ✗
+                                </button>
+                                <button
+                                  onClick={() => approveCompletion(onboarding.id)}
+                                  className="px-2 py-1 text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-all"
+                                >
+                                  ✓
+                                </button>
+                              </div>
+                            ) : (
+                              <select
+                                value={onboarding.attendance || 'pending'}
+                                onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
+                                className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
+                                  onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
+                                  onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
+                                  onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
+                                  onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
+                                  onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
+                                  'bg-blue-500/20 text-blue-300 border-blue-400/30'
+                                }`}
+                              >
+                                <option value="pending" className="text-gray-800">Pending</option>
+                                <option value="completed" className="text-gray-800">Completed</option>
+                                <option value="no-show" className="text-gray-800">No Show</option>
+                                <option value="rescheduled" className="text-gray-800">Rescheduled</option>
+                                <option value="cancelled" className="text-gray-800">Cancelled</option>
+                              </select>
+                            )}
                           </div>
                         </div>
 

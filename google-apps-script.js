@@ -105,30 +105,30 @@ function appendOnboarding(sheet, onboarding) {
     // Check if we need to update headers
     if (sheet.getLastRow() === 0) {
       // New sheet - add headers
-      sheet.appendRow(['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At']);
+      sheet.appendRow(['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance']);
     } else {
       // Check if we need to add attendance column to existing sheet
       const lastCol = sheet.getLastColumn();
       const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-      
+
       console.log('Current headers:', headers);
       console.log('Header count:', headers.length);
-      
+
       // Check if attendance column is missing
-      const hasAttendance = headers.some(header => 
+      const hasAttendance = headers.some(header =>
         header && header.toString().toLowerCase().includes('attendance')
       );
-      
+
       if (!hasAttendance && headers.length >= 5) {
         console.log('Adding attendance column');
         // Insert attendance column before the last column (Synced At)
         const insertPos = headers.length; // Insert at the end, then move Synced At
-        
+
         if (headers[headers.length - 1] && headers[headers.length - 1].toString().includes('Synced')) {
           // Insert before Synced At column
           sheet.insertColumnBefore(lastCol);
           sheet.getRange(1, lastCol).setValue('Attendance');
-          
+
           // Fill existing rows with 'pending'
           if (sheet.getLastRow() > 1) {
             const fillRange = sheet.getRange(2, lastCol, sheet.getLastRow() - 1, 1);
@@ -137,7 +137,7 @@ function appendOnboarding(sheet, onboarding) {
         } else {
           // Just append attendance column
           sheet.getRange(1, lastCol + 1).setValue('Attendance');
-          
+
           // Fill existing rows with 'pending'
           if (sheet.getLastRow() > 1) {
             const fillRange = sheet.getRange(2, lastCol + 1, sheet.getLastRow() - 1, 1);
@@ -146,28 +146,85 @@ function appendOnboarding(sheet, onboarding) {
         }
       }
     }
-    
+
+    // Calculate session number by finding all existing entries for this account and determining chronological position
+    let sessionNumber = onboarding.sessionNumber || 1;
+
+    if (sheet.getLastRow() > 1) {
+      // Get all existing data
+      const lastRow = sheet.getLastRow();
+      const dataRange = sheet.getRange(2, 1, lastRow - 1, 6);
+      const allData = dataRange.getValues();
+
+      // Filter by account number and add the new entry
+      const accountNumber = (onboarding.accountNumber || '').toString().trim();
+      const newDate = onboarding.date || '';
+
+      const accountEntries = allData
+        .filter(row => (row[3] || '').toString().trim() === accountNumber)
+        .map(row => {
+          const date = row[0] instanceof Date ? row[0].toISOString().split('T')[0] : row[0].toString();
+          return { date: date };
+        });
+
+      // Add the new entry
+      accountEntries.push({ date: newDate });
+
+      // Sort chronologically
+      accountEntries.sort((a, b) => a.date.localeCompare(b.date));
+
+      // Find position of new entry
+      sessionNumber = accountEntries.findIndex(entry => entry.date === newDate) + 1;
+
+      console.log(`Calculated session number ${sessionNumber} for account ${accountNumber}`);
+    }
+
     // Add the onboarding data
     const row = [
       onboarding.date,
       onboarding.employeeName,
       onboarding.clientName,
       onboarding.accountNumber,
-      onboarding.sessionNumber,
-      onboarding.attendance || 'pending',
-      new Date().toISOString()
+      sessionNumber,
+      onboarding.attendance || 'pending'
     ];
-    
+
     sheet.appendRow(row);
-    
+
+    // After appending, we need to resort the entire sheet to maintain chronological order
+    // Resort even if there's only 1 data row (getLastRow() > 1 means at least headers + 1 data row)
+    if (sheet.getLastRow() > 1) {
+      const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6);
+      dataRange.sort({ column: 1, ascending: true }); // Sort by Date column (A)
+
+      // After sorting, recalculate ALL session numbers to ensure consistency
+      const allRows = dataRange.getValues();
+      const accountSessionMap = {};
+
+      const updatedRows = allRows.map(row => {
+        const accNum = (row[3] || '').toString().trim();
+
+        if (!accountSessionMap[accNum]) {
+          accountSessionMap[accNum] = 0;
+        }
+        accountSessionMap[accNum]++;
+
+        row[4] = accountSessionMap[accNum]; // Update session number
+        return row;
+      });
+
+      dataRange.setValues(updatedRows);
+      console.log('Resorted and recalculated all session numbers');
+    }
+
     return ContentService
-      .createTextOutput(JSON.stringify({ 
-        success: true, 
+      .createTextOutput(JSON.stringify({
+        success: true,
         message: 'Onboarding added successfully',
         row: sheet.getLastRow()
       }))
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
     return ContentService
       .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
@@ -178,31 +235,60 @@ function appendOnboarding(sheet, onboarding) {
 function syncAllOnboardings(sheet, onboardings) {
   try {
     console.log('Starting syncAll with', onboardings.length, 'onboardings');
-    
+
     // Clear existing data
     sheet.clear();
-    
+
     // Add header row with all columns
-    const headers = ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance', 'Synced At'];
+    const headers = ['Date', 'Employee', 'Client Name', 'Account Number', 'Session #', 'Attendance'];
     sheet.appendRow(headers);
-    
+
     console.log('Headers added:', headers);
-    
+
+    // Sort onboardings chronologically by date (oldest first)
+    const sortedOnboardings = onboardings.slice().sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    console.log('Sorted onboardings chronologically');
+
+    // Recalculate session numbers based on account number + chronological order
+    const accountSessionMap = {};
+    const onboardingsWithCorrectSessions = sortedOnboardings.map((onboarding) => {
+      const accountNum = (onboarding.accountNumber || '').toString().trim();
+
+      // Initialize counter for this account if not exists
+      if (!accountSessionMap[accountNum]) {
+        accountSessionMap[accountNum] = 0;
+      }
+
+      // Increment and assign session number
+      accountSessionMap[accountNum]++;
+
+      return {
+        ...onboarding,
+        sessionNumber: accountSessionMap[accountNum]
+      };
+    });
+
+    console.log('Recalculated session numbers by account');
+
     // Add all onboarding data
-    const rows = onboardings.map((onboarding, index) => {
+    const rows = onboardingsWithCorrectSessions.map((onboarding, index) => {
       const row = [
         onboarding.date || '',
         onboarding.employeeName || '',
         onboarding.clientName || '',
         onboarding.accountNumber || '',
         onboarding.sessionNumber || 1,
-        onboarding.attendance || 'pending',
-        new Date().toISOString()
+        onboarding.attendance || 'pending'
       ];
       console.log(`Row ${index + 1}:`, row);
       return row;
     });
-    
+
     if (rows.length > 0) {
       console.log('Adding', rows.length, 'rows to sheet');
       const range = sheet.getRange(2, 1, rows.length, headers.length);
@@ -211,15 +297,29 @@ function syncAllOnboardings(sheet, onboardings) {
     } else {
       console.log('No data to add');
     }
-    
+
+    // Set up data validation for attendance column (column F = index 6)
+    console.log('Setting up attendance dropdown validation...');
+    const attendanceOptions = ['pending', 'completed', 'cancelled', 'rescheduled', 'no-show'];
+    const attendanceRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(attendanceOptions, true)
+      .setAllowInvalid(false)
+      .setHelpText('Select: pending, completed, cancelled, rescheduled, or no-show')
+      .build();
+
+    // Apply to attendance column (F) for 1000 rows
+    const attendanceRange = sheet.getRange('F2:F1000');
+    attendanceRange.setDataValidation(attendanceRule);
+    console.log('Attendance dropdown validation applied');
+
     return ContentService
-      .createTextOutput(JSON.stringify({ 
-        success: true, 
+      .createTextOutput(JSON.stringify({
+        success: true,
         message: `Successfully synced ${onboardings.length} onboardings`,
         syncedCount: onboardings.length
       }))
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
     return ContentService
       .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
@@ -261,11 +361,11 @@ function readAllOnboardings(sheet) {
     }
     
     // Get all data starting from row 2 (skip headers)
-    const range = sheet.getRange(2, 1, lastRow - 1, 7); // 7 columns: Date, Employee, Client Name, Account Number, Session #, Attendance, Synced At
+    const range = sheet.getRange(2, 1, lastRow - 1, 6); // 6 columns: Date, Employee, Client Name, Account Number, Session #, Attendance
     const values = range.getValues();
-    
+
     const onboardings = values.map((row, index) => {
-      const [date, employeeName, clientName, accountNumber, sessionNumber, attendance, syncedAt] = row;
+      const [date, employeeName, clientName, accountNumber, sessionNumber, attendance] = row;
       
       // Skip empty rows
       if (!date && !employeeName && !clientName) {

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { GoogleSheetsService } from '../services/googleSheets';
+import { SupabaseService } from '../services/supabase';
+import NightShiftBanner from './NightShiftBanner';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
@@ -21,25 +23,17 @@ export default function TeamDashboard() {
     { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ]);
 
-  // Load onboardings from localStorage
-  const loadFromStorage = (key, defaultValue) => {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch (error) {
-      console.error(`Error loading ${key} from localStorage:`, error);
-      return defaultValue;
-    }
-  };
-
-  // Fetch user's onboardings from localStorage
-  const fetchMyOnboardings = () => {
+  // Fetch user's onboardings from Supabase
+  const fetchMyOnboardings = async () => {
     if (!employeeId) return;
 
     try {
-      const allOnboardings = loadFromStorage('onboardings', []);
-      const myOnboardings = allOnboardings.filter(ob => ob.employeeId === employeeId);
-      setMyOnboardings(myOnboardings);
+      const result = await SupabaseService.getOnboardingsByEmployee(employeeId);
+      if (result.success) {
+        setMyOnboardings(result.onboardings);
+      } else {
+        console.error('Error fetching onboardings:', result.error);
+      }
     } catch (err) {
       console.error('Error fetching onboardings:', err);
     }
@@ -94,15 +88,15 @@ export default function TeamDashboard() {
   useEffect(() => {
     fetchMyOnboardings();
 
-    // Listen for storage changes from other tabs/windows (like admin dashboard)
-    const handleStorageChange = (e) => {
-      if (e.key === 'onboardings') {
-        fetchMyOnboardings();
-      }
-    };
+    // Subscribe to real-time changes from Supabase
+    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
+      console.log('Real-time update detected:', payload);
+      fetchMyOnboardings();
+    });
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      SupabaseService.unsubscribe(subscription);
+    };
   }, [employeeId]);
 
   const handleSubmit = async (e) => {
@@ -111,18 +105,23 @@ export default function TeamDashboard() {
     setMessage('');
 
     try {
-      // Load all existing onboardings
-      const allOnboardings = loadFromStorage('onboardings', []);
-
-      // Find existing onboardings for this client to determine session number
-      const clientOnboardings = allOnboardings.filter(ob =>
-        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
+      // Get all onboardings for this account number to determine session number
+      // Sort by date ascending so session # reflects chronological order
+      const allResult = await SupabaseService.getAllOnboardings();
+      const accountOnboardings = allResult.success
+        ? allResult.onboardings.filter(ob =>
+            ob.accountNumber?.trim() === accountNumber.trim()
+          )
+        : [];
+      const sorted = [...accountOnboardings].sort((a, b) =>
+        (a.date || '').localeCompare(b.date || '')
       );
-      const sessionNumber = clientOnboardings.length + 1;
+      // Find where the new date falls in the sorted list to assign the right session number
+      const insertPos = sorted.filter(ob => (ob.date || '') <= selectedDate).length;
+      const sessionNumber = insertPos + 1;
 
       // Create the new onboarding entry
       const newOnboarding = {
-        id: Date.now(),
         employeeId: employeeId,
         employeeName: employees.find(e => e.id === employeeId)?.name,
         clientName: clientName.trim(),
@@ -131,30 +130,35 @@ export default function TeamDashboard() {
         attendance: 'pending',
         date: selectedDate,
         month: selectedDate.slice(0, 7),
-        notes: notes.trim() || undefined  // Only add notes if provided
+        notes: notes.trim() || undefined
       };
 
-      // Update localStorage
-      const updatedOnboardings = [...allOnboardings, newOnboarding];
-      localStorage.setItem('onboardings', JSON.stringify(updatedOnboardings));
+      // Save to Supabase
+      const result = await SupabaseService.createOnboarding(newOnboarding);
 
-      // Sync to Google Sheets
-      setMessage('Syncing to Google Sheets...');
-      try {
-        await GoogleSheetsService.appendOnboarding(newOnboarding);
-        setMessage('Onboarding session logged successfully!');
-      } catch (syncError) {
-        console.error('Google Sheets sync error:', syncError);
-        setMessage('Session logged locally. Google Sheets sync may have failed.');
+      if (result.success) {
+        // Sync to Google Sheets
+        setMessage('Syncing to Google Sheets...');
+        try {
+          await GoogleSheetsService.appendOnboarding({
+            ...newOnboarding,
+            id: result.onboarding.id
+          });
+          setMessage('Onboarding session logged successfully!');
+        } catch (syncError) {
+          console.error('Google Sheets sync error:', syncError);
+          setMessage('Session logged to database. Google Sheets sync may have failed.');
+        }
+
+        // Clear form
+        setClientName('');
+        setAccountNumber('');
+        setNotes('');
+
+        // Refresh will happen automatically via real-time subscription
+      } else {
+        setMessage('Error: ' + result.error);
       }
-
-      // Clear form
-      setClientName('');
-      setAccountNumber('');
-      setNotes('');
-
-      // Refresh the list
-      fetchMyOnboardings();
     } catch (err) {
       console.error('Error logging onboarding:', err);
       setMessage('Error: Failed to log session');
@@ -164,7 +168,7 @@ export default function TeamDashboard() {
     }
   };
 
-  // Import sessions from Google Sheets
+  // Import sessions from Google Sheets to Supabase
   const handleImportSessions = async () => {
     setImportStatus({ isLoading: true, message: 'Importing your sessions from Google Sheets...', type: 'info' });
 
@@ -192,9 +196,10 @@ export default function TeamDashboard() {
             type: 'warning'
           });
         } else {
-          // Load existing onboardings from localStorage
-          const existingOnboardings = loadFromStorage('onboardings', []);
-          console.log(`💾 Existing sessions in localStorage: ${existingOnboardings.length}`);
+          // Load existing onboardings from Supabase
+          const existingResult = await SupabaseService.getOnboardingsByEmployee(employeeId);
+          const existingOnboardings = existingResult.success ? existingResult.onboardings : [];
+          console.log(`💾 Existing sessions in Supabase: ${existingOnboardings.length}`);
 
           // Merge with existing (avoid duplicates by checking date + client + account)
           const existingKeys = new Set(
@@ -219,20 +224,29 @@ export default function TeamDashboard() {
               type: 'success'
             });
           } else {
-            // Add new sessions to localStorage
-            const updatedOnboardings = [...existingOnboardings, ...newSessions];
-            localStorage.setItem('onboardings', JSON.stringify(updatedOnboardings));
+            // Add new sessions to Supabase
+            let successCount = 0;
+            let errorCount = 0;
 
-            console.log(`💾 Saved ${updatedOnboardings.length} total sessions to localStorage`);
+            for (const session of newSessions) {
+              const result = await SupabaseService.createOnboarding(session);
+              if (result.success) {
+                successCount++;
+              } else {
+                errorCount++;
+                console.error('Failed to import session:', session, result.error);
+              }
+            }
+
+            console.log(`💾 Imported ${successCount} sessions to Supabase`);
 
             setImportStatus({
               isLoading: false,
-              message: `Successfully imported ${newSessions.length} new session${newSessions.length !== 1 ? 's' : ''} from Google Sheets!`,
-              type: 'success'
+              message: `Successfully imported ${successCount} new session${successCount !== 1 ? 's' : ''} from Google Sheets!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+              type: successCount > 0 ? 'success' : 'error'
             });
 
-            // Refresh the list
-            fetchMyOnboardings();
+            // Refresh will happen automatically via real-time subscription
           }
         }
       } else {
@@ -257,6 +271,8 @@ export default function TeamDashboard() {
     }, 7000);
   };
 
+  const [statusLoading, setStatusLoading] = useState({});
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -269,6 +285,7 @@ export default function TeamDashboard() {
     const colors = {
       pending: 'bg-blue-500/20 text-blue-300 border-blue-500/50',
       completed: 'bg-green-500/20 text-green-300 border-green-500/50',
+      pending_approval: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
       cancelled: 'bg-red-500/20 text-red-300 border-red-500/50',
       rescheduled: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50',
       'no-show': 'bg-orange-500/20 text-orange-300 border-orange-500/50'
@@ -276,223 +293,363 @@ export default function TeamDashboard() {
     return colors[attendance] || colors.pending;
   };
 
+  const getAttendanceLabel = (attendance) => {
+    const labels = {
+      pending: 'Pending',
+      completed: 'Completed',
+      pending_approval: 'Awaiting Approval',
+      cancelled: 'Cancelled',
+      rescheduled: 'Rescheduled',
+      'no-show': 'No Show',
+    };
+    return labels[attendance] || 'Pending';
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    setStatusLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      if (newStatus === 'completed') {
+        await SupabaseService.requestCompletion(id);
+      } else {
+        await SupabaseService.updateOnboardingStatus(id, newStatus);
+      }
+      // Real-time will refresh
+    } catch (err) {
+      console.error('Status update error:', err);
+    } finally {
+      setStatusLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen p-4 md:p-8" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
+      <style>{`
+        .td-glass {
+          background: rgba(255,255,255,0.03);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 1rem;
+        }
+        .td-input {
+          width: 100%;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 0.5rem;
+          padding: 0.65rem 1rem;
+          color: white;
+          font-size: 0.875rem;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .td-input:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 2px rgba(99,102,241,0.25);
+        }
+        .td-input::placeholder { color: rgba(148,163,184,0.6); }
+        .td-label {
+          display: block;
+          font-size: 0.65rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: #94a3b8;
+          margin-bottom: 0.5rem;
+        }
+        .td-table th {
+          padding: 0.75rem 1.25rem;
+          font-size: 0.6rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: #64748b;
+          background: rgba(255,255,255,0.04);
+          text-align: left;
+        }
+        .td-table td {
+          padding: 0.85rem 1.25rem;
+          font-size: 0.875rem;
+          border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .td-table tr:hover td { background: rgba(255,255,255,0.03); }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto space-y-6">
+
         {/* Header */}
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border border-white/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-1">
-                My Onboarding Sessions
-              </h1>
-              <p className="text-gray-300">
-                Welcome, {currentUser?.displayName || currentUser?.email}
-              </p>
-            </div>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg border border-white/20 transition-all"
-            >
-              Sign Out
-            </button>
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-white">My Onboarding Sessions</h1>
+            <p className="text-sm text-slate-400 mt-1">
+              Welcome, <span className="text-indigo-300">{currentUser?.displayName || currentUser?.email}</span>
+            </p>
           </div>
-        </div>
+          <button
+            onClick={logout}
+            className="td-glass px-5 py-2 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+          >
+            Sign Out
+          </button>
+        </header>
 
-        {/* Quick Stats Dashboard */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
-            <div className="text-gray-400 text-sm mb-1">Today</div>
-            <div className="text-3xl font-bold text-white">{stats.todayCount}</div>
-            <div className="text-gray-300 text-xs mt-1">sessions</div>
-          </div>
+        {/* Night Shift Banner */}
+        <NightShiftBanner />
 
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
-            <div className="text-gray-400 text-sm mb-1">This Month</div>
-            <div className="text-3xl font-bold text-blue-400">{stats.monthCount}</div>
-            <div className="text-gray-300 text-xs mt-1">sessions</div>
-          </div>
+        {/* Main two-column layout */}
+        <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
-            <div className="text-gray-400 text-sm mb-1">All Time</div>
-            <div className="text-3xl font-bold text-purple-400">{stats.totalCount}</div>
-            <div className="text-gray-300 text-xs mt-1">sessions</div>
-          </div>
+          {/* LEFT — Stats + Sessions Table */}
+          <section className="lg:col-span-8 space-y-6">
 
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 border border-white/20">
-            <div className="text-gray-400 text-sm mb-1">Streak</div>
-            <div className="text-3xl font-bold text-green-400">{stats.streak}</div>
-            <div className="text-gray-300 text-xs mt-1">{stats.streak === 1 ? 'day' : 'days'}</div>
-          </div>
-        </div>
-
-        {/* Most Frequent Client */}
-        {stats.mostFrequentClient && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-xl p-4 mb-6 border border-white/20">
-            <div className="text-gray-400 text-sm mb-1">Most Frequent Client</div>
-            <div className="text-xl font-bold text-white">{stats.mostFrequentClient.name}</div>
-            <div className="text-gray-300 text-sm mt-1">{stats.mostFrequentClient.count} sessions</div>
-          </div>
-        )}
-
-        {/* Log New Session Form */}
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 mb-6 border border-white/20">
-          <h2 className="text-xl font-bold text-white mb-4">Log New Onboarding Session</h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="clientName" className="block text-sm font-medium text-gray-200 mb-2">
-                Client Name
-              </label>
-              <input
-                id="clientName"
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                required
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter client name"
-              />
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="td-glass p-5 flex flex-col justify-between h-32">
+                <span className="td-label">Today</span>
+                <div>
+                  <div className="text-4xl font-bold text-white">{stats.todayCount}</div>
+                  <p className="text-[10px] text-slate-500 uppercase mt-1">sessions</p>
+                </div>
+              </div>
+              <div className="td-glass p-5 flex flex-col justify-between h-32">
+                <span className="td-label">This Month</span>
+                <div>
+                  <div className="text-4xl font-bold text-indigo-300">{stats.monthCount}</div>
+                  <p className="text-[10px] text-slate-500 uppercase mt-1">sessions</p>
+                </div>
+              </div>
+              <div className="td-glass p-5 flex flex-col justify-between h-32">
+                <span className="td-label">All Time</span>
+                <div>
+                  <div className="text-4xl font-bold text-purple-300">{stats.totalCount}</div>
+                  <p className="text-[10px] text-slate-500 uppercase mt-1">sessions</p>
+                </div>
+              </div>
+              <div className="td-glass p-5 flex flex-col justify-between h-32" style={{ borderColor: 'rgba(74,222,128,0.25)' }}>
+                <span className="td-label" style={{ color: '#4ade80' }}>Streak</span>
+                <div>
+                  <div className="text-4xl font-bold text-green-400">{stats.streak}</div>
+                  <p className="text-[10px] text-slate-500 uppercase mt-1">{stats.streak === 1 ? 'day' : 'days'}</p>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-200 mb-2">
-                Account Number
-              </label>
-              <input
-                id="accountNumber"
-                type="text"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                required
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter account number"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="date" className="block text-sm font-medium text-gray-200 mb-2">
-                Session Date
-              </label>
-              <input
-                id="date"
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                required
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-200 mb-2">
-                Notes (Optional)
-              </label>
-              <textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                placeholder="e.g., Client asked about feature X, Follow-up needed, etc."
-              />
-              <p className="text-gray-400 text-xs mt-1">Add any important details or reminders about this session</p>
-            </div>
-
-            {message && (
-              <div className={`rounded-lg p-3 border ${
-                message.startsWith('Error')
-                  ? 'bg-red-500/10 border-red-500/50 text-red-300'
-                  : 'bg-green-500/10 border-green-500/50 text-green-300'
-              }`}>
-                {message}
+            {/* Most Frequent Client */}
+            {stats.mostFrequentClient && (
+              <div className="td-glass p-5" style={{ borderColor: 'rgba(99,102,241,0.25)' }}>
+                <span className="td-label">Most Frequent Client</span>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xl font-bold text-white">{stats.mostFrequentClient.name}</p>
+                  <span className="text-sm bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full border border-indigo-500/30">
+                    {stats.mostFrequentClient.count} sessions
+                  </span>
+                </div>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold py-3 px-4 rounded-lg hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {loading ? 'Logging Session...' : 'Log Session'}
-            </button>
-          </form>
-        </div>
+            {/* Sessions Table */}
+            <div className="td-glass overflow-hidden">
+              <div className="p-5 border-b border-white/5 flex justify-between items-center flex-wrap gap-3">
+                <h3 className="text-lg font-bold text-white">My Recent Sessions</h3>
+                <button
+                  onClick={handleImportSessions}
+                  disabled={importStatus.isLoading}
+                  className="text-xs bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-md font-semibold text-white transition-colors flex items-center gap-1.5"
+                >
+                  <svg className={`w-3.5 h-3.5 ${importStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {importStatus.isLoading ? 'Importing...' : 'Import Sessions'}
+                </button>
+              </div>
 
-        {/* My Recent Sessions */}
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-6 border border-white/20">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h2 className="text-xl font-bold text-white">My Recent Sessions</h2>
-            <button
-              onClick={handleImportSessions}
-              disabled={importStatus.isLoading}
-              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:from-blue-600 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-            >
-              <svg className={`w-4 h-4 ${importStatus.isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              {importStatus.isLoading ? 'Importing...' : 'Import Sessions'}
-            </button>
-          </div>
+              {importStatus.message && (
+                <div className={`mx-5 mt-4 rounded-lg p-3 border text-sm ${
+                  importStatus.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-300' :
+                  importStatus.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' :
+                  importStatus.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300' :
+                  'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                }`}>
+                  {importStatus.message}
+                </div>
+              )}
 
-          {importStatus.message && (
-            <div className={`rounded-lg p-3 mb-4 border ${
-              importStatus.type === 'success' ? 'bg-green-500/10 border-green-500/50 text-green-300' :
-              importStatus.type === 'error' ? 'bg-red-500/10 border-red-500/50 text-red-300' :
-              importStatus.type === 'warning' ? 'bg-yellow-500/10 border-yellow-500/50 text-yellow-300' :
-              'bg-blue-500/10 border-blue-500/50 text-blue-300'
-            }`}>
-              {importStatus.message}
+              {myOnboardings.length === 0 ? (
+                <p className="text-slate-500 text-center py-12 text-sm">
+                  No sessions logged yet. Log your first one using the form.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full td-table">
+                    <thead>
+                      <tr>
+                        <th>Client</th>
+                        <th>Account #</th>
+                        <th>Session</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myOnboardings
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                        .slice(0, 15)
+                        .map((onboarding) => (
+                          <tr key={onboarding.id}>
+                            <td>
+                              <div className="font-semibold text-white">{onboarding.clientName}</div>
+                              {onboarding.notes && (
+                                <div className="text-xs text-slate-500 mt-0.5 max-w-[200px] truncate" title={onboarding.notes}>
+                                  {onboarding.notes}
+                                </div>
+                              )}
+                            </td>
+                            <td className="text-slate-400 font-mono text-xs">{onboarding.accountNumber}</td>
+                            <td className="text-slate-400">#{onboarding.sessionNumber}</td>
+                            <td className="text-slate-300 whitespace-nowrap">{formatDate(onboarding.date)}</td>
+                            <td>
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${getAttendanceColor(onboarding.attendance)}`}>
+                                {getAttendanceLabel(onboarding.attendance)}
+                              </span>
+                              {onboarding.attendance === 'pending_approval' && (
+                                <p className="text-amber-400/60 text-[10px] mt-1">Waiting for admin</p>
+                              )}
+                            </td>
+                            <td>
+                              {onboarding.attendance !== 'completed' && (
+                                <div className="flex flex-wrap gap-1">
+                                  {onboarding.attendance !== 'no-show' && (
+                                    <button
+                                      onClick={() => handleStatusChange(onboarding.id, 'no-show')}
+                                      disabled={statusLoading[onboarding.id]}
+                                      className="px-2 py-0.5 text-[10px] bg-orange-500/15 text-orange-300 border border-orange-500/30 rounded hover:bg-orange-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      No Show
+                                    </button>
+                                  )}
+                                  {onboarding.attendance !== 'rescheduled' && (
+                                    <button
+                                      onClick={() => handleStatusChange(onboarding.id, 'rescheduled')}
+                                      disabled={statusLoading[onboarding.id]}
+                                      className="px-2 py-0.5 text-[10px] bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 rounded hover:bg-yellow-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      Reschedule
+                                    </button>
+                                  )}
+                                  {onboarding.attendance !== 'pending_approval' && (
+                                    <button
+                                      onClick={() => handleStatusChange(onboarding.id, 'completed')}
+                                      disabled={statusLoading[onboarding.id]}
+                                      className="px-2 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      Request ✓
+                                    </button>
+                                  )}
+                                  {(onboarding.attendance === 'no-show' || onboarding.attendance === 'rescheduled' || onboarding.attendance === 'pending_approval') && (
+                                    <button
+                                      onClick={() => handleStatusChange(onboarding.id, 'pending')}
+                                      disabled={statusLoading[onboarding.id]}
+                                      className="px-2 py-0.5 text-[10px] bg-white/5 text-white/40 border border-white/10 rounded hover:bg-white/10 transition-all disabled:opacity-50"
+                                    >
+                                      Undo
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
+          </section>
 
-          {myOnboardings.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">
-              No sessions logged yet. Submit your first one above!
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {myOnboardings
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(0, 10)
-                .map((onboarding) => (
-                  <div
-                    key={onboarding.id}
-                    className="bg-white/5 border border-white/10 rounded-lg p-4 hover:bg-white/10 transition-all"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-white font-semibold text-lg">
-                          {onboarding.clientName}
-                        </h3>
-                        <p className="text-gray-400 text-sm mt-1">
-                          Account: {onboarding.accountNumber}
-                        </p>
-                        <p className="text-gray-400 text-sm">
-                          Session #{onboarding.sessionNumber}
-                        </p>
-                        {onboarding.notes && (
-                          <div className="mt-2 p-2 bg-white/5 rounded border border-white/10">
-                            <p className="text-gray-300 text-sm">
-                              <span className="text-gray-400 font-medium">Notes:</span> {onboarding.notes}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-gray-300 text-sm mb-2">
-                          {formatDate(onboarding.date)}
-                        </p>
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getAttendanceColor(onboarding.attendance)}`}>
-                          {onboarding.attendance}
-                        </span>
-                      </div>
-                    </div>
+          {/* RIGHT — Log Session Form */}
+          <aside className="lg:col-span-4">
+            <div className="td-glass p-6 sticky top-8">
+              <h2 className="text-xl font-bold text-white mb-6">Log New Onboarding Session</h2>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="td-label" htmlFor="clientName">Client Name</label>
+                  <input
+                    id="clientName"
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    required
+                    className="td-input"
+                    placeholder="Enter client name"
+                  />
+                </div>
+
+                <div>
+                  <label className="td-label" htmlFor="accountNumber">Account Number</label>
+                  <input
+                    id="accountNumber"
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => setAccountNumber(e.target.value)}
+                    required
+                    className="td-input"
+                    placeholder="Enter account number"
+                  />
+                </div>
+
+                <div>
+                  <label className="td-label" htmlFor="date">Session Date</label>
+                  <input
+                    id="date"
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    required
+                    className="td-input"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="td-label" htmlFor="notes">Notes (Optional)</label>
+                  <textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                    className="td-input resize-none"
+                    placeholder="e.g., Client asked about feature X, Follow-up needed, etc."
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1.5">Add any important details or reminders</p>
+                </div>
+
+                {message && (
+                  <div className={`rounded-lg p-3 border text-sm ${
+                    message.startsWith('Error')
+                      ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                      : 'bg-green-500/10 border-green-500/30 text-green-300'
+                  }`}>
+                    {message}
                   </div>
-                ))}
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full font-bold py-3 px-4 rounded-lg text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+                  style={{
+                    background: loading ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%)',
+                    boxShadow: '0 4px 20px rgba(99,102,241,0.35)'
+                  }}
+                >
+                  {loading ? 'Logging Session...' : 'Log Session'}
+                </button>
+              </form>
             </div>
-          )}
-        </div>
+          </aside>
+
+        </main>
       </div>
     </div>
   );
