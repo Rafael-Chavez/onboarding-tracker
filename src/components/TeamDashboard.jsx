@@ -168,91 +168,40 @@ export default function TeamDashboard() {
     }
   };
 
-  // Import sessions from Google Sheets to Supabase
+  // Import sessions from Supabase (refresh from Sales Dashboard data)
   const handleImportSessions = async () => {
-    setImportStatus({ isLoading: true, message: 'Importing your sessions from Google Sheets...', type: 'info' });
+    setImportStatus({ isLoading: true, message: 'Refreshing your sessions from database...', type: 'info' });
 
     try {
-      const result = await GoogleSheetsService.importFromGoogleSheetsAPI();
+      // Simply refresh from Supabase - all data is already there from Sales Dashboard
+      const result = await SupabaseService.getOnboardingsByEmployee(employeeId);
 
-      console.log('📥 Import result:', result);
+      console.log('📥 Refresh result:', result);
       console.log('👤 Current employee ID:', employeeId);
-      console.log('📊 Total sessions from Sheets:', result.onboardings?.length || 0);
 
-      if (result.success && result.onboardings) {
-        // Filter to only this team member's sessions
-        const mySessions = result.onboardings.filter(ob => {
-          const matches = ob.employeeId === employeeId;
-          console.log(`Checking: ${ob.employeeName} (ID: ${ob.employeeId}) vs your ID (${employeeId}): ${matches ? '✅' : '❌'}`);
-          return matches;
-        });
+      if (result.success) {
+        const sessionCount = result.onboardings.length;
+        console.log(`📊 Total sessions found: ${sessionCount}`);
 
-        console.log(`✅ Found ${mySessions.length} sessions for you`);
+        setMyOnboardings(result.onboardings);
 
-        if (mySessions.length === 0) {
+        if (sessionCount === 0) {
           setImportStatus({
             isLoading: false,
-            message: `No sessions found for you (ID: ${employeeId}) in Google Sheets.`,
+            message: `No sessions found for you. Sessions need to be added via Sales Dashboard first.`,
             type: 'warning'
           });
         } else {
-          // Load existing onboardings from Supabase
-          const existingResult = await SupabaseService.getOnboardingsByEmployee(employeeId);
-          const existingOnboardings = existingResult.success ? existingResult.onboardings : [];
-          console.log(`💾 Existing sessions in Supabase: ${existingOnboardings.length}`);
-
-          // Merge with existing (avoid duplicates by checking date + client + account)
-          const existingKeys = new Set(
-            existingOnboardings.map(ob => `${ob.date}-${ob.clientName}-${ob.accountNumber}`)
-          );
-
-          const newSessions = mySessions.filter(ob => {
-            const key = `${ob.date}-${ob.clientName}-${ob.accountNumber}`;
-            const isDuplicate = existingKeys.has(key);
-            if (isDuplicate) {
-              console.log(`⏭️ Skipping duplicate: ${key}`);
-            }
-            return !isDuplicate;
+          setImportStatus({
+            isLoading: false,
+            message: `Successfully loaded ${sessionCount} session${sessionCount !== 1 ? 's' : ''}!`,
+            type: 'success'
           });
-
-          console.log(`📦 New sessions to import: ${newSessions.length}`);
-
-          if (newSessions.length === 0) {
-            setImportStatus({
-              isLoading: false,
-              message: 'All your sessions are already up to date!',
-              type: 'success'
-            });
-          } else {
-            // Add new sessions to Supabase
-            let successCount = 0;
-            let errorCount = 0;
-
-            for (const session of newSessions) {
-              const result = await SupabaseService.createOnboarding(session);
-              if (result.success) {
-                successCount++;
-              } else {
-                errorCount++;
-                console.error('Failed to import session:', session, result.error);
-              }
-            }
-
-            console.log(`💾 Imported ${successCount} sessions to Supabase`);
-
-            setImportStatus({
-              isLoading: false,
-              message: `Successfully imported ${successCount} new session${successCount !== 1 ? 's' : ''} from Google Sheets!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
-              type: successCount > 0 ? 'success' : 'error'
-            });
-
-            // Refresh will happen automatically via real-time subscription
-          }
         }
       } else {
         setImportStatus({
           isLoading: false,
-          message: result.error || 'Failed to import sessions. Please try again.',
+          message: result.error || 'Failed to load sessions. Please try again.',
           type: 'error'
         });
       }
@@ -260,15 +209,15 @@ export default function TeamDashboard() {
       console.error('Import error:', error);
       setImportStatus({
         isLoading: false,
-        message: 'Failed to import sessions. Please try again.',
+        message: 'Failed to load sessions. Please try again.',
         type: 'error'
       });
+    } finally {
+      // Clear status message after 7 seconds
+      setTimeout(() => {
+        setImportStatus({ isLoading: false, message: '', type: '' });
+      }, 7000);
     }
-
-    // Clear status message after 7 seconds
-    setTimeout(() => {
-      setImportStatus({ isLoading: false, message: '', type: '' });
-    }, 7000);
   };
 
   const [statusLoading, setStatusLoading] = useState({});
