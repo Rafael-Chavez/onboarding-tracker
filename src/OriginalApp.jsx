@@ -160,16 +160,64 @@ function App() {
   }
 
   const approveCompletion = async (id) => {
+    setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
+
     const result = await SupabaseService.approveCompletion(id)
-    if (!result.success) {
-      console.error('Error approving completion:', result.error)
+
+    if (result.success) {
+      setSyncStatus({
+        isLoading: false,
+        message: '✓ Session marked as completed!',
+        type: 'success'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
+
+      // Auto-sync to Google Sheets if enabled
+      if (autoSync) {
+        try {
+          await GoogleSheetsService.updateOnboarding(result.onboarding)
+        } catch (error) {
+          console.error('Error syncing to Google Sheets:', error)
+        }
+      }
+    } else {
+      setSyncStatus({
+        isLoading: false,
+        message: `✗ Error approving: ${result.error}`,
+        type: 'error'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
   }
 
   const rejectCompletion = async (id) => {
+    setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
+
     const result = await SupabaseService.rejectCompletion(id)
-    if (!result.success) {
-      console.error('Error rejecting completion:', result.error)
+
+    if (result.success) {
+      setSyncStatus({
+        isLoading: false,
+        message: '✓ Session marked as pending',
+        type: 'success'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
+
+      // Auto-sync to Google Sheets if enabled
+      if (autoSync) {
+        try {
+          await GoogleSheetsService.updateOnboarding(result.onboarding)
+        } catch (error) {
+          console.error('Error syncing to Google Sheets:', error)
+        }
+      }
+    } else {
+      setSyncStatus({
+        isLoading: false,
+        message: `✗ Error rejecting: ${result.error}`,
+        type: 'error'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
   }
 
