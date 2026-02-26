@@ -234,6 +234,7 @@ export default function TeamDashboard() {
   };
 
   const [statusLoading, setStatusLoading] = useState({});
+  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -269,15 +270,60 @@ export default function TeamDashboard() {
 
   const handleStatusChange = async (id, newStatus) => {
     setStatusLoading(prev => ({ ...prev, [id]: true }));
+
     try {
+      let result;
       if (newStatus === 'completed') {
-        await SupabaseService.requestCompletion(id);
+        result = await SupabaseService.requestCompletion(id);
+        if (result.success) {
+          setNotification({
+            show: true,
+            message: 'Completion request sent for approval',
+            type: 'success'
+          });
+        }
       } else {
-        await SupabaseService.updateOnboardingStatus(id, newStatus);
+        result = await SupabaseService.updateOnboardingStatus(id, newStatus);
+        if (result.success) {
+          const statusMessages = {
+            'no-show': 'Session marked as No Show',
+            'rescheduled': 'Session marked as Rescheduled',
+            'pending': 'Session reset to Pending',
+            'cancelled': 'Session marked as Cancelled'
+          };
+          setNotification({
+            show: true,
+            message: statusMessages[newStatus] || 'Status updated',
+            type: 'success'
+          });
+        }
       }
-      // Real-time will refresh
+
+      if (!result.success) {
+        setNotification({
+          show: true,
+          message: 'Failed to update status',
+          type: 'error'
+        });
+      }
+
+      // Auto-hide notification after 2 seconds
+      setTimeout(() => {
+        setNotification({ show: false, message: '', type: '' });
+      }, 2000);
+
+      // Real-time subscription will refresh the data
+      await fetchMyOnboardings();
     } catch (err) {
       console.error('Status update error:', err);
+      setNotification({
+        show: true,
+        message: 'Error updating status',
+        type: 'error'
+      });
+      setTimeout(() => {
+        setNotification({ show: false, message: '', type: '' });
+      }, 2000);
     } finally {
       setStatusLoading(prev => ({ ...prev, [id]: false }));
     }
@@ -285,7 +331,27 @@ export default function TeamDashboard() {
 
   return (
     <div className="min-h-screen p-4 md:p-8" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
+      {/* Center Notification */}
+      {notification.show && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-fadeIn">
+          <div className={`px-6 py-4 rounded-xl shadow-2xl border-2 backdrop-blur-md text-center min-w-[300px] ${
+            notification.type === 'success'
+              ? 'bg-green-500/90 border-green-300 text-white'
+              : 'bg-red-500/90 border-red-300 text-white'
+          }`}>
+            <p className="font-bold text-lg">{notification.message}</p>
+          </div>
+        </div>
+      )}
+
       <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translate(-50%, -60%); }
+          to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
         .td-glass {
           background: rgba(255,255,255,0.03);
           backdrop-filter: blur(12px);
