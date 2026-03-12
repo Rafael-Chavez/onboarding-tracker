@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
 
@@ -112,6 +113,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Password reset function
+  const resetPassword = async (email) => {
+    try {
+      setError(null);
+      await sendPasswordResetEmail(auth, email);
+      return { success: true, message: 'Password reset email sent! Check your inbox.' };
+    } catch (err) {
+      setError(err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
   // Initialize user roles in localStorage on first load
   useEffect(() => {
     const stored = localStorage.getItem(USER_ROLES_KEY);
@@ -145,6 +158,7 @@ export const AuthProvider = ({ children }) => {
     employeeId,
     login,
     logout,
+    resetPassword,
     loading,
     error
   };
