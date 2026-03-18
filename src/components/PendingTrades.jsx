@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabaseService } from '../services/supabase';
+import { supabase } from '../config/supabase';
 
 export default function PendingTrades({ employeeId, employeeName, onTradeUpdate }) {
   const [trades, setTrades] = useState([]);
@@ -15,7 +15,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
     try {
       setLoading(true);
 
-      const { data, error } = await supabaseService.client
+      const { data, error } = await supabase
         .from('shift_trades')
         .select(`
           *,
@@ -38,7 +38,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
   };
 
   const setupRealtimeSubscription = () => {
-    const channel = supabaseService.client
+    const channel = supabase
       .channel('shift_trades_changes')
       .on(
         'postgres_changes',
@@ -57,7 +57,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
       .subscribe();
 
     return () => {
-      supabaseService.client.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
   };
 
@@ -71,7 +71,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
     try {
       setProcessingTradeId(trade.id);
 
-      const { error } = await supabaseService.client
+      const { error } = await supabase
         .from('shift_trades')
         .update({
           status: 'accepted',
@@ -83,7 +83,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
       if (error) throw error;
 
       // Update the shifts
-      await supabaseService.client
+      await supabase
         .from('night_shifts')
         .update({
           employee_id: trade.respondent_employee_id,
@@ -91,7 +91,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
         })
         .eq('id', trade.initiator_shift_id);
 
-      await supabaseService.client
+      await supabase
         .from('night_shifts')
         .update({
           employee_id: trade.initiator_employee_id,
@@ -118,7 +118,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
     try {
       setProcessingTradeId(trade.id);
 
-      const { error } = await supabaseService.client
+      const { error } = await supabase
         .from('shift_trades')
         .update({
           status: 'rejected',
@@ -148,7 +148,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
     try {
       setProcessingTradeId(trade.id);
 
-      const { error } = await supabaseService.client
+      const { error } = await supabase
         .from('shift_trades')
         .update({
           status: 'cancelled',

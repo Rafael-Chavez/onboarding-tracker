@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { supabaseService } from '../services/supabase';
+import { supabase } from '../config/supabase';
 
 export default function ShiftCalendar({ employeeId, onShiftSelect }) {
   const [shifts, setShifts] = useState([]);
@@ -21,7 +21,7 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
       const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
       const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 2, 0);
 
-      const { data, error } = await supabaseService.client
+      const { data, error } = await supabase
         .from('night_shifts')
         .select(`
           *,

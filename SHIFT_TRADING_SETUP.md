@@ -232,7 +232,9 @@ Shifts automatically swap back    |
 
 ### Get my shifts
 ```javascript
-const { data } = await supabaseService.client
+import { supabase } from '../config/supabase';
+
+const { data } = await supabase
   .from('night_shifts')
   .select('*, employee:employees(id, name, color)')
   .eq('employee_id', myEmployeeId)
@@ -242,7 +244,9 @@ const { data } = await supabaseService.client
 
 ### Create trade request
 ```javascript
-const { data } = await supabaseService.client
+import { supabase } from '../config/supabase';
+
+const { data } = await supabase
   .from('shift_trades')
   .insert({
     initiator_employee_id: myId,
@@ -256,7 +260,9 @@ const { data } = await supabaseService.client
 
 ### Accept trade
 ```javascript
-const { data } = await supabaseService.client
+import { supabase } from '../config/supabase';
+
+const { data } = await supabase
   .from('shift_trades')
   .update({ status: 'accepted' })
   .eq('id', tradeId);

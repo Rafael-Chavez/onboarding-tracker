@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabaseService } from '../services/supabase';
+import { supabase } from '../config/supabase';
 
 export default function ShiftTradeModal({
   isOpen,
@@ -25,7 +25,7 @@ export default function ShiftTradeModal({
       setLoading(true);
 
       // Get all shifts for other team members around the same time period
-      const { data, error } = await supabaseService.client
+      const { data, error } = await supabase
         .from('night_shifts')
         .select(`
           *,
@@ -57,7 +57,7 @@ export default function ShiftTradeModal({
     try {
       setSubmitting(true);
 
-      const { data, error } = await supabaseService.client
+      const { data, error } = await supabase
         .from('shift_trades')
         .insert({
           initiator_employee_id: myEmployeeId,
