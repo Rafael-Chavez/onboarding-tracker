@@ -1,7 +1,7 @@
 -- Script to populate initial night shifts based on the rotation logic
 -- Night shift rotation: Marc (4) → Erick (6) → Danreb (2) → Jim (3) → Steve (5)
 -- Reference: Week of 2026-02-15 (Sun) = Erick (employee_id 6, index 1)
--- Schedule: Sunday - Friday (6 days per week)
+-- Schedule: Sunday - Thursday (5 days per week)
 
 -- This script generates shifts for the next 90 days (approximately 3 months)
 
@@ -35,8 +35,8 @@ BEGIN
     current_index := MOD(MOD(reference_index + week_offset, 5) + 5, 5) + 1; -- 1-based index
     employee_id := rotation_ids[current_index];
 
-    -- Create shifts for Sunday through Friday (6 days)
-    FOR day_num IN 0..5 LOOP
+    -- Create shifts for Sunday through Thursday (5 days)
+    FOR day_num IN 0..4 LOOP
       shift_date := current_sunday + day_num;
 
       -- Insert the shift (ignore if already exists)

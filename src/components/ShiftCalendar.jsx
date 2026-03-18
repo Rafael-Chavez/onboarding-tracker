@@ -85,17 +85,41 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     if (!shift) return '';
 
     const isOwn = shift.employee_id === employeeId;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tileDate = new Date(date);
+    tileDate.setHours(0, 0, 0, 0);
+
+    // Check if this date is in the current work week (Sunday-Thursday)
+    const isCurrentWeek = shift.week_start_date === getCurrentWeekStart();
+    const isToday = tileDate.getTime() === today.getTime();
+
     let className = 'night-shift-tile';
 
     if (isOwn) {
       className += ' my-shift-tile';
+      if (isCurrentWeek) {
+        className += ' current-week-tile';
+      }
     }
 
     if (shift.status === 'completed') {
       className += ' completed-shift';
     }
 
+    if (isToday) {
+      className += ' today-shift';
+    }
+
     return className;
+  };
+
+  const getCurrentWeekStart = () => {
+    const today = new Date();
+    const day = today.getDay(); // 0 = Sunday
+    const sunday = new Date(today);
+    sunday.setDate(sunday.getDate() - day);
+    return sunday.toISOString().split('T')[0];
   };
 
   const handleDateClick = (date) => {
@@ -180,6 +204,34 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           border: 1px solid rgba(139, 92, 246, 0.3);
         }
 
+        .current-week-tile {
+          background: rgba(59, 130, 246, 0.25) !important;
+          border: 2px solid rgba(59, 130, 246, 0.6) !important;
+          box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .today-shift {
+          position: relative;
+        }
+
+        .today-shift::before {
+          content: '';
+          position: absolute;
+          top: 2px;
+          right: 2px;
+          width: 8px;
+          height: 8px;
+          background: #22c55e;
+          border-radius: 50%;
+          box-shadow: 0 0 8px #22c55e;
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+
         .completed-shift {
           opacity: 0.6;
         }
@@ -220,6 +272,10 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold ring-2 ring-white ring-offset-2 ring-offset-gray-800"></div>
                 <span>Your shifts</span>
+              </div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-xl bg-blue-500/25 border-2 border-blue-500/60"></div>
+                <span>Current work week (Sun-Thu)</span>
               </div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold"></div>

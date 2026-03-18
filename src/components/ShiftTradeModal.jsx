@@ -6,64 +6,84 @@ export default function ShiftTradeModal({
   onClose,
   myShift,
   myEmployeeId,
-  myEmployeeName
+  myEmployeeName,
+  targetEmployee,
+  targetShifts
 }) {
-  const [availableShifts, setAvailableShifts] = useState([]);
-  const [selectedShift, setSelectedShift] = useState(null);
+  const [myWeeks, setMyWeeks] = useState([]);
+  const [selectedMyWeek, setSelectedMyWeek] = useState(null);
   const [tradeMessage, setTradeMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isOpen && myShift) {
-      loadAvailableShifts();
+    if (isOpen) {
+      loadMyWeeks();
     }
-  }, [isOpen, myShift]);
+  }, [isOpen, myEmployeeId]);
 
-  const loadAvailableShifts = async () => {
+  const loadMyWeeks = async () => {
     try {
       setLoading(true);
 
-      // Get all shifts for other team members around the same time period
+      // Get my upcoming weeks
+      const today = new Date();
+      const fourWeeksLater = new Date(today);
+      fourWeeksLater.setDate(fourWeeksLater.getDate() + 28);
+
       const { data, error } = await supabase
         .from('night_shifts')
-        .select(`
-          *,
-          employee:employees(id, name, color)
-        `)
-        .neq('employee_id', myEmployeeId)
+        .select('*')
+        .eq('employee_id', myEmployeeId)
         .eq('status', 'scheduled')
-        .gte('shift_date', new Date().toISOString().split('T')[0])
-        .order('shift_date', { ascending: true })
-        .limit(30);
+        .gte('shift_date', today.toISOString().split('T')[0])
+        .lte('shift_date', fourWeeksLater.toISOString().split('T')[0])
+        .order('shift_date', { ascending: true });
 
       if (error) throw error;
 
-      // Group by employee and week
-      setAvailableShifts(data || []);
+      // Group by week
+      const weekGroups = {};
+      data?.forEach(shift => {
+        const weekStart = shift.week_start_date;
+        if (!weekGroups[weekStart]) {
+          weekGroups[weekStart] = {
+            weekStart,
+            shifts: []
+          };
+        }
+        weekGroups[weekStart].shifts.push(shift);
+      });
+
+      setMyWeeks(Object.values(weekGroups));
     } catch (error) {
-      console.error('Error loading available shifts:', error);
+      console.error('Error loading my weeks:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmitTrade = async () => {
-    if (!selectedShift) {
-      alert('Please select a shift to trade with');
+    if (!selectedMyWeek || !targetShifts || targetShifts.length === 0) {
+      alert('Please select your week to trade');
       return;
     }
 
     try {
       setSubmitting(true);
 
+      // We'll create a trade for the first shift of each week as the primary reference
+      // The entire week is implied by the week_start_date
+      const myFirstShift = selectedMyWeek.shifts[0];
+      const theirFirstShift = targetShifts[0];
+
       const { data, error } = await supabase
         .from('shift_trades')
         .insert({
           initiator_employee_id: myEmployeeId,
-          respondent_employee_id: selectedShift.employee_id,
-          initiator_shift_id: myShift.id,
-          respondent_shift_id: selectedShift.id,
+          respondent_employee_id: targetEmployee.id,
+          initiator_shift_id: myFirstShift.id,
+          respondent_shift_id: theirFirstShift.id,
           trade_message: tradeMessage || null,
           auto_swap_back: true,
           status: 'pending'
@@ -73,9 +93,9 @@ export default function ShiftTradeModal({
 
       if (error) throw error;
 
-      alert('Trade request sent successfully!');
+      alert(`Trade request sent to ${targetEmployee.name}!`);
       onClose();
-      setSelectedShift(null);
+      setSelectedMyWeek(null);
       setTradeMessage('');
     } catch (error) {
       console.error('Error creating trade request:', error);
@@ -99,25 +119,12 @@ export default function ShiftTradeModal({
 
   const formatWeekRange = (weekStartStr) => {
     const sunday = new Date(weekStartStr);
-    const friday = new Date(sunday);
-    friday.setDate(friday.getDate() + 5);
+    const thursday = new Date(sunday);
+    thursday.setDate(thursday.getDate() + 4); // Sunday to Thursday
 
-    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(sunday)} – ${fmt(friday)}`;
+    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${fmt(sunday)} – ${fmt(thursday)}`;
   };
-
-  // Group shifts by employee
-  const shiftsByEmployee = availableShifts.reduce((acc, shift) => {
-    const empId = shift.employee_id;
-    if (!acc[empId]) {
-      acc[empId] = {
-        employee: shift.employee,
-        shifts: []
-      };
-    }
-    acc[empId].shifts.push(shift);
-    return acc;
-  }, {});
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -136,79 +143,77 @@ export default function ShiftTradeModal({
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-          {/* My Shift Info */}
-          <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
-            <div className="text-sm text-white/60 mb-2">You're trading:</div>
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${myShift?.employee?.color || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
-                {myEmployeeName?.[0]}
-              </div>
-              <div>
-                <div className="text-white font-semibold text-lg">
-                  {formatDate(myShift?.shift_date)}
+          {/* Trading With */}
+          {targetEmployee && (
+            <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-4 mb-6 border border-purple-500/30">
+              <div className="text-sm text-white/60 mb-2">Trading with:</div>
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${targetEmployee.color} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
+                  {targetEmployee.name[0]}
                 </div>
-                <div className="text-white/60 text-sm">
-                  Week: {formatWeekRange(myShift?.week_start_date)}
+                <div>
+                  <div className="text-white font-semibold text-lg">{targetEmployee.name}</div>
+                  {targetShifts && targetShifts.length > 0 && (
+                    <div className="text-white/60 text-sm">
+                      Their week: {formatWeekRange(targetShifts[0].week_start_date)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Available Shifts */}
+          {/* Select My Week */}
           <div className="mb-6">
-            <h3 className="text-white font-semibold mb-3">Select a shift to trade with:</h3>
+            <h3 className="text-white font-semibold mb-3">Select which of your weeks to trade:</h3>
 
             {loading && (
               <div className="text-center text-white/60 py-8">
-                Loading available shifts...
+                Loading your weeks...
               </div>
             )}
 
-            {!loading && Object.keys(shiftsByEmployee).length === 0 && (
+            {!loading && myWeeks.length === 0 && (
               <div className="text-center text-white/60 py-8">
-                No available shifts to trade with at this time.
+                No upcoming weeks available for trading.
               </div>
             )}
 
-            {!loading && (
-              <div className="space-y-4">
-                {Object.values(shiftsByEmployee).map(({ employee, shifts }) => (
-                  <div key={employee.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${employee.color} flex items-center justify-center text-white font-bold shadow-lg`}>
-                        {employee.name[0]}
+            {!loading && myWeeks.length > 0 && (
+              <div className="space-y-3">
+                {myWeeks.map((week) => (
+                  <button
+                    key={week.weekStart}
+                    onClick={() => setSelectedMyWeek(week)}
+                    className={`w-full p-4 rounded-lg text-left transition-all border-2 ${
+                      selectedMyWeek?.weekStart === week.weekStart
+                        ? 'bg-purple-600 border-purple-400 shadow-lg'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-white font-semibold text-lg">
+                          {formatWeekRange(week.weekStart)}
+                        </div>
+                        <div className="text-white/60 text-sm mt-1">
+                          {week.shifts.length} days (Sun–Thu)
+                        </div>
                       </div>
-                      <div className="text-white font-semibold text-lg">{employee.name}</div>
+                      {selectedMyWeek?.weekStart === week.weekStart && (
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {shifts.slice(0, 6).map((shift) => (
-                        <button
-                          key={shift.id}
-                          onClick={() => setSelectedShift(shift)}
-                          className={`p-3 rounded-lg text-left transition-all ${
-                            selectedShift?.id === shift.id
-                              ? 'bg-purple-600 border-purple-400 shadow-lg scale-105'
-                              : 'bg-white/5 hover:bg-white/10 border-white/10'
-                          } border`}
-                        >
-                          <div className="text-white text-sm font-medium">
-                            {formatDate(shift.shift_date)}
-                          </div>
-                          <div className="text-white/60 text-xs">
-                            {formatWeekRange(shift.week_start_date)}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
           </div>
 
           {/* Message */}
-          {selectedShift && (
+          {selectedMyWeek && (
             <div className="mb-6">
               <label className="block text-white font-semibold mb-2">
                 Add a message (optional):
@@ -223,15 +228,21 @@ export default function ShiftTradeModal({
             </div>
           )}
 
-          {/* Trade Info */}
-          {selectedShift && (
+          {/* Trade Summary */}
+          {selectedMyWeek && targetShifts && targetShifts.length > 0 && (
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-2 text-blue-200 text-sm">
-                <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <strong>Automatic swap-back:</strong> After you both complete your traded shifts, the assignments will automatically swap back to the original schedule.
+              <div className="text-blue-200 text-sm space-y-2">
+                <div className="font-semibold mb-2">Trade Summary:</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-300">You give:</span>
+                  <span className="font-medium">{formatWeekRange(selectedMyWeek.weekStart)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-green-300">You get:</span>
+                  <span className="font-medium">{formatWeekRange(targetShifts[0].week_start_date)}</span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-blue-500/30">
+                  <strong>Note:</strong> After both weeks are completed, shifts will automatically swap back to the original schedule.
                 </div>
               </div>
             </div>
@@ -248,9 +259,9 @@ export default function ShiftTradeModal({
           </button>
           <button
             onClick={handleSubmitTrade}
-            disabled={!selectedShift || submitting}
+            disabled={!selectedMyWeek || submitting}
             className={`px-6 py-2 rounded-lg font-medium transition-all ${
-              selectedShift && !submitting
+              selectedMyWeek && !submitting
                 ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-xl'
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
