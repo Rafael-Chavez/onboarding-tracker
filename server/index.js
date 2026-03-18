@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import employeesRouter from './routes/employees.js';
 import onboardingsRouter from './routes/onboardings.js';
 import usersRouter from './routes/users.js';
+import shiftsRouter from './routes/shifts.js';
+import tradesRouter from './routes/trades.js';
 import pool from './config/database.js';
 
 dotenv.config();
@@ -39,6 +41,8 @@ app.get('/health', async (req, res) => {
 app.use('/api/users', usersRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/onboardings', onboardingsRouter);
+app.use('/api/shifts', shiftsRouter);
+app.use('/api/trades', tradesRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -49,7 +53,9 @@ app.get('/', (req, res) => {
       health: '/health',
       users: '/api/users',
       employees: '/api/employees',
-      onboardings: '/api/onboardings'
+      onboardings: '/api/onboardings',
+      shifts: '/api/shifts',
+      trades: '/api/trades'
     }
   });
 });

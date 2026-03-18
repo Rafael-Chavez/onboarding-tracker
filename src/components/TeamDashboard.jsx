@@ -3,6 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { SupabaseService } from '../services/supabase';
 import NightShiftBanner from './NightShiftBanner';
+import ShiftCalendar from './ShiftCalendar';
+import ShiftTradeModal from './ShiftTradeModal';
+import PendingTrades from './PendingTrades';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
@@ -22,6 +25,13 @@ export default function TeamDashboard() {
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
     { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ]);
+
+  // Shift trading state
+  const [showTradeModal, setShowTradeModal] = useState(false);
+  const [selectedShiftForTrade, setSelectedShiftForTrade] = useState(null);
+  const [showShiftCalendar, setShowShiftCalendar] = useState(false);
+
+  const currentEmployee = employees.find(emp => emp.id === employeeId);
 
   // Fetch user's onboardings from Supabase
   const fetchMyOnboardings = async () => {
@@ -423,6 +433,46 @@ export default function TeamDashboard() {
         {/* Night Shift Banner */}
         <NightShiftBanner />
 
+        {/* Shift Trading Section */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">Night Shift Management</h2>
+            <button
+              onClick={() => setShowShiftCalendar(!showShiftCalendar)}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-all shadow-lg"
+            >
+              {showShiftCalendar ? 'Hide Calendar' : 'View Shift Calendar'}
+            </button>
+          </div>
+
+          {showShiftCalendar && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <ShiftCalendar
+                  employeeId={employeeId}
+                  onShiftSelect={(shift, date) => {
+                    if (shift.employee_id === employeeId && shift.status === 'scheduled') {
+                      setSelectedShiftForTrade(shift);
+                      setShowTradeModal(true);
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <PendingTrades
+                  employeeId={employeeId}
+                  employeeName={currentEmployee?.name}
+                  onTradeUpdate={() => {
+                    // Refresh calendar when trade is updated
+                    setShowShiftCalendar(false);
+                    setTimeout(() => setShowShiftCalendar(true), 100);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* Main two-column layout */}
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -678,6 +728,18 @@ export default function TeamDashboard() {
           </aside>
 
         </main>
+
+        {/* Shift Trade Modal */}
+        <ShiftTradeModal
+          isOpen={showTradeModal}
+          onClose={() => {
+            setShowTradeModal(false);
+            setSelectedShiftForTrade(null);
+          }}
+          myShift={selectedShiftForTrade}
+          myEmployeeId={employeeId}
+          myEmployeeName={currentEmployee?.name}
+        />
       </div>
     </div>
   );
