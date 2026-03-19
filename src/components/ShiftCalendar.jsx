@@ -45,9 +45,54 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     return shifts.find(shift => shift.shift_date === dateStr);
   };
 
-  const isMyShift = (date) => {
-    const shift = getShiftForDate(date);
-    return shift && shift.employee_id === employeeId;
+
+  // Group consecutive shifts for bar display
+  const getShiftRanges = () => {
+    const ranges = [];
+    const sortedShifts = [...shifts].sort((a, b) =>
+      new Date(a.shift_date) - new Date(b.shift_date)
+    );
+
+    let currentRange = null;
+
+    sortedShifts.forEach(shift => {
+      const shiftDate = new Date(shift.shift_date + 'T00:00:00');
+
+      if (!currentRange || currentRange.employee_id !== shift.employee_id) {
+        // Start new range
+        if (currentRange) ranges.push(currentRange);
+        currentRange = {
+          employee_id: shift.employee_id,
+          employee: shift.employee,
+          startDate: shiftDate,
+          endDate: shiftDate,
+          shifts: [shift]
+        };
+      } else {
+        // Check if consecutive
+        const lastDate = new Date(currentRange.endDate);
+        const dayDiff = Math.floor((shiftDate - lastDate) / (1000 * 60 * 60 * 24));
+
+        if (dayDiff === 1) {
+          // Extend current range
+          currentRange.endDate = shiftDate;
+          currentRange.shifts.push(shift);
+        } else {
+          // Gap detected, start new range
+          ranges.push(currentRange);
+          currentRange = {
+            employee_id: shift.employee_id,
+            employee: shift.employee,
+            startDate: shiftDate,
+            endDate: shiftDate,
+            shifts: [shift]
+          };
+        }
+      }
+    });
+
+    if (currentRange) ranges.push(currentRange);
+    return ranges;
   };
 
   const getTileContent = ({ date, view }) => {
@@ -56,21 +101,53 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     const shift = getShiftForDate(date);
     if (!shift) return null;
 
-    const isOwn = shift.employee_id === employeeId;
+    const isOwn = employeeId && shift.employee_id === employeeId;
     const employeeName = shift.employee?.name || 'Unknown';
     const employeeInitial = employeeName[0];
 
     // Get color class from employee color gradient
     const colorClass = shift.employee?.color || 'from-gray-500 to-gray-600';
 
+    // Check if this is part of a range
+    const ranges = getShiftRanges();
+    const range = ranges.find(r =>
+      r.employee_id === shift.employee_id &&
+      date >= r.startDate &&
+      date <= r.endDate
+    );
+
+    const isRangeStart = range && date.getTime() === range.startDate.getTime();
+    const isRangeEnd = range && date.getTime() === range.endDate.getTime();
+
     return (
-      <div className="flex flex-col items-center justify-center mt-1">
+      <div className="flex flex-col items-center justify-center mt-1 relative">
+        {/* Colored bar for ranges */}
+        {range && range.shifts.length > 1 && (
+          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${colorClass} ${
+            isRangeStart ? 'rounded-l-full' : ''
+          } ${isRangeEnd ? 'rounded-r-full' : ''}`}
+            style={{
+              marginLeft: isRangeStart ? '0' : '-4px',
+              marginRight: isRangeEnd ? '0' : '-4px',
+              width: isRangeStart || isRangeEnd ? 'calc(100% + 4px)' : 'calc(100% + 8px)'
+            }}
+          />
+        )}
+
         <div
-          className={`w-6 h-6 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white text-xs font-bold shadow-sm ${isOwn ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-800' : ''}`}
+          className={`w-6 h-6 rounded-full bg-gradient-to-br ${colorClass} flex items-center justify-center text-white text-xs font-bold shadow-sm ${isOwn ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-800' : ''} relative z-10`}
           title={`${employeeName}'s shift${shift.status === 'traded' ? ' (traded)' : ''}`}
         >
           {employeeInitial}
         </div>
+
+        {/* Show date range label on start date */}
+        {isRangeStart && range.shifts.length > 1 && (
+          <div className="text-[8px] text-white/80 font-semibold mt-1 whitespace-nowrap">
+            {employeeName}
+          </div>
+        )}
+
         {shift.status === 'traded' && (
           <span className="text-[8px] text-yellow-400 font-semibold">↔</span>
         )}
@@ -84,7 +161,7 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     const shift = getShiftForDate(date);
     if (!shift) return '';
 
-    const isOwn = shift.employee_id === employeeId;
+    const isOwn = employeeId && shift.employee_id === employeeId;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tileDate = new Date(date);
