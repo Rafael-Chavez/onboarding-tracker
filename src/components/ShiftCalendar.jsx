@@ -354,7 +354,11 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     const isCurrentWeek = shift.week_start_date === getCurrentWeekStart();
     const isToday = tileDate.getTime() === today.getTime();
 
+    // Get employee ID for custom styling
+    const empId = shift.employee_id;
+
     let className = 'night-shift-tile';
+    className += ` shift-employee-${empId}`;
 
     if (isOwn) {
       className += ' my-shift-tile';
@@ -459,9 +463,45 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           background: rgba(255, 255, 255, 0.05);
         }
 
+        /* Employee-specific colored borders and backgrounds */
+        .shift-employee-1 {
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(6, 182, 212, 0.15)) !important;
+          border: 3px solid #06b6d4 !important;
+          box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .shift-employee-2 {
+          background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(168, 85, 247, 0.15)) !important;
+          border: 3px solid #a855f7 !important;
+          box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+        }
+
+        .shift-employee-3 {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(34, 197, 94, 0.15)) !important;
+          border: 3px solid #22c55e !important;
+          box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+
+        .shift-employee-4 {
+          background: linear-gradient(135deg, rgba(249, 115, 22, 0.25), rgba(249, 115, 22, 0.15)) !important;
+          border: 3px solid #f97316 !important;
+          box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+        }
+
+        .shift-employee-5 {
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(99, 102, 241, 0.15)) !important;
+          border: 3px solid #6366f1 !important;
+          box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .shift-employee-6 {
+          background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(236, 72, 153, 0.15)) !important;
+          border: 3px solid #ec4899 !important;
+          box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+        }
+
         .my-shift-tile {
           background: rgba(139, 92, 246, 0.15);
-          border: 1px solid rgba(139, 92, 246, 0.3);
         }
 
         .current-week-tile {
