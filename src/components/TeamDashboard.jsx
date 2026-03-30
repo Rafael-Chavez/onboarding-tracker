@@ -110,7 +110,11 @@ export default function TeamDashboard() {
     // Subscribe to real-time changes from Supabase
     const subscription = SupabaseService.subscribeToOnboardings((payload) => {
       console.log('Real-time update detected:', payload);
-      fetchMyOnboardings();
+      // Only refresh if the change is relevant to this employee
+      if (payload.new?.employee_id === employeeId || payload.old?.employee_id === employeeId) {
+        console.log('Change is relevant to current user, refreshing...');
+        fetchMyOnboardings();
+      }
     });
 
     return () => {
@@ -174,7 +178,8 @@ export default function TeamDashboard() {
         setAccountNumber('');
         setNotes('');
 
-        // Refresh will happen automatically via real-time subscription
+        // Immediately refresh the onboardings list for instant feedback
+        await fetchMyOnboardings();
       } else {
         setMessage('Error: ' + result.error);
       }

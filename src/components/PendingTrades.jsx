@@ -63,7 +63,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
 
   const handleAcceptTrade = async (trade) => {
     if (!window.confirm(
-      `Accept trade request from ${trade.initiator.name}?\n\nYou'll take their shift on ${formatDate(trade.initiator_shift.shift_date)} and they'll take yours on ${formatDate(trade.respondent_shift.shift_date)}.`
+      `Accept trade request from ${trade.initiator.name}?\n\nYou'll take their week (${formatWeekRange(trade.initiator_shift.week_start_date)}) and they'll take yours (${formatWeekRange(trade.respondent_shift.week_start_date)}).`
     )) {
       return;
     }
@@ -71,7 +71,8 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
     try {
       setProcessingTradeId(trade.id);
 
-      const { error } = await supabase
+      // First, update the trade status
+      const { error: tradeError } = await supabase
         .from('shift_trades')
         .update({
           status: 'accepted',
@@ -80,26 +81,33 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
         })
         .eq('id', trade.id);
 
-      if (error) throw error;
+      if (tradeError) throw tradeError;
 
-      // Update the shifts
-      await supabase
+      // Update ALL shifts for the initiator's week
+      const { error: initiatorWeekError } = await supabase
         .from('night_shifts')
         .update({
           employee_id: trade.respondent_employee_id,
           status: 'traded'
         })
-        .eq('id', trade.initiator_shift_id);
+        .eq('week_start_date', trade.initiator_shift.week_start_date)
+        .eq('employee_id', trade.initiator_employee_id);
 
-      await supabase
+      if (initiatorWeekError) throw initiatorWeekError;
+
+      // Update ALL shifts for the respondent's week
+      const { error: respondentWeekError } = await supabase
         .from('night_shifts')
         .update({
           employee_id: trade.initiator_employee_id,
           status: 'traded'
         })
-        .eq('id', trade.respondent_shift_id);
+        .eq('week_start_date', trade.respondent_shift.week_start_date)
+        .eq('employee_id', trade.respondent_employee_id);
 
-      alert('Trade accepted successfully!');
+      if (respondentWeekError) throw respondentWeekError;
+
+      alert('Trade accepted successfully! All shifts for both weeks have been swapped.');
       loadTrades();
       if (onTradeUpdate) onTradeUpdate();
     } catch (error) {
