@@ -442,6 +442,7 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           flex-direction: column;
           align-items: center;
           justify-content: flex-start;
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .react-calendar__tile:enabled:hover,
@@ -449,65 +450,74 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           background-color: rgba(255, 255, 255, 0.1);
         }
 
-        .react-calendar__tile--now {
+        .react-calendar__tile--now:not([class*="shift-employee-"]) {
           background: rgba(59, 130, 246, 0.2);
           border: 1px solid rgba(59, 130, 246, 0.4);
         }
 
-        .react-calendar__tile--active {
+        .react-calendar__tile--active:not([class*="shift-employee-"]) {
           background: rgba(59, 130, 246, 0.3) !important;
           border: 1px solid rgba(59, 130, 246, 0.6);
         }
 
-        .night-shift-tile {
+        .night-shift-tile:not([class*="shift-employee-"]) {
           background: rgba(255, 255, 255, 0.05);
         }
 
         /* Employee-specific colored borders and backgrounds */
-        .shift-employee-1 {
-          background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(6, 182, 212, 0.15)) !important;
+        .react-calendar__tile.shift-employee-1 {
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(6, 182, 212, 0.2)) !important;
           border: 3px solid #06b6d4 !important;
-          box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+          box-shadow: 0 0 15px rgba(6, 182, 212, 0.5) !important;
         }
 
-        .shift-employee-2 {
-          background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(168, 85, 247, 0.15)) !important;
+        .react-calendar__tile.shift-employee-2 {
+          background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(168, 85, 247, 0.2)) !important;
           border: 3px solid #a855f7 !important;
-          box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+          box-shadow: 0 0 15px rgba(168, 85, 247, 0.5) !important;
         }
 
-        .shift-employee-3 {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(34, 197, 94, 0.15)) !important;
+        .react-calendar__tile.shift-employee-3 {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(34, 197, 94, 0.2)) !important;
           border: 3px solid #22c55e !important;
-          box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+          box-shadow: 0 0 15px rgba(34, 197, 94, 0.5) !important;
         }
 
-        .shift-employee-4 {
-          background: linear-gradient(135deg, rgba(249, 115, 22, 0.25), rgba(249, 115, 22, 0.15)) !important;
+        .react-calendar__tile.shift-employee-4 {
+          background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(249, 115, 22, 0.2)) !important;
           border: 3px solid #f97316 !important;
-          box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+          box-shadow: 0 0 15px rgba(249, 115, 22, 0.5) !important;
         }
 
-        .shift-employee-5 {
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(99, 102, 241, 0.15)) !important;
+        .react-calendar__tile.shift-employee-5 {
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.2)) !important;
           border: 3px solid #6366f1 !important;
-          box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 0 15px rgba(99, 102, 241, 0.5) !important;
         }
 
-        .shift-employee-6 {
-          background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(236, 72, 153, 0.15)) !important;
+        .react-calendar__tile.shift-employee-6 {
+          background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(236, 72, 153, 0.2)) !important;
           border: 3px solid #ec4899 !important;
-          box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+          box-shadow: 0 0 15px rgba(236, 72, 153, 0.5) !important;
         }
 
-        .my-shift-tile {
-          background: rgba(139, 92, 246, 0.15);
+        .react-calendar__tile.my-shift-tile {
+          border-width: 4px !important;
+          border-style: double !important;
         }
 
-        .current-week-tile {
-          background: rgba(59, 130, 246, 0.25) !important;
-          border: 2px solid rgba(59, 130, 246, 0.6) !important;
-          box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        .react-calendar__tile.current-week-tile {
+          box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), inset 0 0 30px rgba(59, 130, 246, 0.3) !important;
+          animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), inset 0 0 30px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.8), inset 0 0 40px rgba(59, 130, 246, 0.4);
+          }
         }
 
         .today-shift {
