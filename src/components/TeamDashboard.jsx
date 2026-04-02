@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { SupabaseService } from '../services/supabase';
+import Sidebar from './Sidebar';
+import NightShiftCalendarView from './NightShiftCalendarView';
 import NightShiftBanner from './NightShiftBanner';
 import ShiftCalendar from './ShiftCalendar';
 import ShiftTradeModal from './ShiftTradeModal';
@@ -10,6 +12,7 @@ import TeamShiftSelector from './TeamShiftSelector';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
+  const [currentView, setCurrentView] = useState('overview');
   const [clientName, setClientName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [notes, setNotes] = useState('');
@@ -36,14 +39,14 @@ export default function TeamDashboard() {
 
   const currentEmployee = employees.find(emp => emp.id === employeeId);
 
-  const handleTradeRequest = (employee, shifts) => {
+  const handleTradeRequest = useCallback((employee, shifts) => {
     setTargetEmployee(employee);
     setTargetShifts(shifts);
     setShowTradeModal(true);
-  };
+  }, []);
 
-  // Fetch user's onboardings from Supabase
-  const fetchMyOnboardings = async () => {
+  // Fetch user's onboardings from Supabase - useCallback to prevent recreating function
+  const fetchMyOnboardings = useCallback(async () => {
     if (!employeeId) return;
 
     try {
@@ -56,10 +59,10 @@ export default function TeamDashboard() {
     } catch (err) {
       console.error('Error fetching onboardings:', err);
     }
-  };
+  }, [employeeId]);
 
-  // Calculate stats
-  const calculateStats = () => {
+  // Calculate stats with memoization to avoid recalculating on every render
+  const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
     const currentMonth = new Date().toISOString().slice(0, 7);
 
@@ -100,9 +103,7 @@ export default function TeamDashboard() {
       streak,
       mostFrequentClient: mostFrequentClient ? { name: mostFrequentClient[0], count: mostFrequentClient[1] } : null
     };
-  };
-
-  const stats = calculateStats();
+  }, [myOnboardings]); // Only recalculate when myOnboardings changes
 
   useEffect(() => {
     fetchMyOnboardings();
@@ -353,22 +354,26 @@ export default function TeamDashboard() {
     }
   };
 
-  return (
-    <div className="min-h-screen p-4 md:p-8" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
-      {/* Center Notification */}
-      {notification.show && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-fadeIn">
-          <div className={`px-6 py-4 rounded-xl shadow-2xl border-2 backdrop-blur-md text-center min-w-[300px] ${
-            notification.type === 'success'
-              ? 'bg-green-500/90 border-green-300 text-white'
-              : 'bg-red-500/90 border-red-300 text-white'
-          }`}>
-            <p className="font-bold text-lg">{notification.message}</p>
-          </div>
-        </div>
-      )}
+  // Render different views based on currentView
+  const renderView = () => {
+    switch (currentView) {
+      case 'calendar':
+        return <NightShiftCalendarView employeeId={employeeId} employeeName={currentEmployee?.name} />;
+      case 'overview':
+      case 'sessions':
+      default:
+        return renderSessionsView();
+    }
+  };
 
+  const renderSessionsView = () => (
+    <div className="sessions-content">
       <style>{`
+        .sessions-content {
+          padding: 32px;
+          max-width: 1400px;
+          margin: 0 auto;
+        }
         @keyframes fadeIn {
           from { opacity: 0; transform: translate(-50%, -60%); }
           to { opacity: 1; transform: translate(-50%, -50%); }
@@ -425,35 +430,33 @@ export default function TeamDashboard() {
         }
         .td-table tr:hover td { background: rgba(255,255,255,0.03); }
       `}</style>
+      {/* Header */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white">
+            {currentView === 'overview' ? 'My Onboarding Sessions' :
+             currentView === 'team' ? 'Team Members' :
+             currentView === 'sessions' ? 'My Sessions' :
+             currentView === 'calendar' ? 'Night Shift Calendar' :
+             'Settings'}
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Welcome, <span className="text-indigo-300">{currentUser?.displayName || currentUser?.email}</span>
+          </p>
+        </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto space-y-6">
+      {/* Night Shift Banner */}
+      {currentView === 'overview' && <NightShiftBanner />}
 
-        {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">My Onboarding Sessions</h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Welcome, <span className="text-indigo-300">{currentUser?.displayName || currentUser?.email}</span>
-            </p>
-          </div>
-          <button
-            onClick={logout}
-            className="td-glass px-5 py-2 text-sm font-medium text-white hover:bg-white/10 transition-colors"
-          >
-            Sign Out
-          </button>
-        </header>
-
-        {/* Night Shift Banner */}
-        <NightShiftBanner />
-
-        {/* Shift Trading Section */}
-        <section className="space-y-4">
+      {/* Shift Trading Section */}
+      {currentView === 'overview' && (
+        <section className="space-y-4 mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">Night Shift Management</h2>
             <button
               onClick={() => setShowShiftCalendar(!showShiftCalendar)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-all shadow-lg"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-colors shadow-lg"
             >
               {showShiftCalendar ? 'Hide' : 'Open Night Shift Manager'}
             </button>
@@ -498,10 +501,11 @@ export default function TeamDashboard() {
             </div>
           )}
         </section>
+      )}
 
-        {/* Main two-column layout */}
+      {/* Main two-column layout */}
+      {(currentView === 'overview' || currentView === 'sessions') && (
         <main className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
           {/* LEFT — Stats + Sessions Table */}
           <section className="lg:col-span-8 space-y-6">
 
@@ -626,7 +630,7 @@ export default function TeamDashboard() {
                                     <button
                                       onClick={() => handleStatusChange(onboarding.id, 'no-show')}
                                       disabled={statusLoading[onboarding.id]}
-                                      className="px-2 py-0.5 text-[10px] bg-orange-500/15 text-orange-300 border border-orange-500/30 rounded hover:bg-orange-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                      className="px-2 py-0.5 text-[10px] bg-orange-500/15 text-orange-300 border border-orange-500/30 rounded hover:bg-orange-500/25 transition-colors disabled:opacity-50 whitespace-nowrap"
                                     >
                                       No Show
                                     </button>
@@ -635,7 +639,7 @@ export default function TeamDashboard() {
                                     <button
                                       onClick={() => handleStatusChange(onboarding.id, 'rescheduled')}
                                       disabled={statusLoading[onboarding.id]}
-                                      className="px-2 py-0.5 text-[10px] bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 rounded hover:bg-yellow-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                      className="px-2 py-0.5 text-[10px] bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 rounded hover:bg-yellow-500/25 transition-colors disabled:opacity-50 whitespace-nowrap"
                                     >
                                       Reschedule
                                     </button>
@@ -644,7 +648,7 @@ export default function TeamDashboard() {
                                     <button
                                       onClick={() => handleStatusChange(onboarding.id, 'completed')}
                                       disabled={statusLoading[onboarding.id]}
-                                      className="px-2 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/25 transition-all disabled:opacity-50 whitespace-nowrap"
+                                      className="px-2 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/25 transition-colors disabled:opacity-50 whitespace-nowrap"
                                     >
                                       Request ✓
                                     </button>
@@ -653,7 +657,7 @@ export default function TeamDashboard() {
                                     <button
                                       onClick={() => handleStatusChange(onboarding.id, 'pending')}
                                       disabled={statusLoading[onboarding.id]}
-                                      className="px-2 py-0.5 text-[10px] bg-white/5 text-white/40 border border-white/10 rounded hover:bg-white/10 transition-all disabled:opacity-50"
+                                      className="px-2 py-0.5 text-[10px] bg-white/5 text-white/40 border border-white/10 rounded hover:bg-white/10 transition-colors disabled:opacity-50"
                                     >
                                       Undo
                                     </button>
@@ -741,7 +745,7 @@ export default function TeamDashboard() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full font-bold py-3 px-4 rounded-lg text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg"
+                  className="w-full font-bold py-3 px-4 rounded-lg text-white transition-opacity disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                   style={{
                     background: loading ? 'rgba(99,102,241,0.5)' : 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%)',
                     boxShadow: '0 4px 20px rgba(99,102,241,0.35)'
@@ -754,6 +758,33 @@ export default function TeamDashboard() {
           </aside>
 
         </main>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)' }}>
+      <Sidebar
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        employeeName={currentEmployee?.name}
+      />
+
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Center Notification */}
+        {notification.show && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 animate-fadeIn">
+            <div className={`px-6 py-4 rounded-xl shadow-2xl border-2 backdrop-blur-md text-center min-w-[300px] ${
+              notification.type === 'success'
+                ? 'bg-green-500/90 border-green-300 text-white'
+                : 'bg-red-500/90 border-red-300 text-white'
+            }`}>
+              <p className="font-bold text-lg">{notification.message}</p>
+            </div>
+          </div>
+        )}
+
+        {renderView()}
 
         {/* Shift Trade Modal */}
         <ShiftTradeModal

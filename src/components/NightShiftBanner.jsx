@@ -1,10 +1,9 @@
-// Night shift rotation: Marc → Erick → Danreb → Jim → Steve
+// Night shift rotation: Marc → Erick → Jim → Steve
 // Reference: Week of 2026-02-15 (Sun) = Erick (index 1)
 
 const ROTATION = [
   { name: 'Marc',   color: 'from-orange-500 to-red-500',    textColor: 'text-orange-300' },
   { name: 'Erick',  color: 'from-rose-500 to-pink-500',     textColor: 'text-rose-300'   },
-  { name: 'Danreb', color: 'from-purple-500 to-pink-500',   textColor: 'text-purple-300' },
   { name: 'Jim',    color: 'from-green-500 to-teal-500',    textColor: 'text-green-300'  },
   { name: 'Steve',  color: 'from-indigo-500 to-purple-500', textColor: 'text-indigo-300' },
 ]

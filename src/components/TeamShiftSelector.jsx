@@ -7,7 +7,6 @@ export default function TeamShiftSelector({ myEmployeeId, myEmployeeName, onTrad
 
   const employees = [
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
-    { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },

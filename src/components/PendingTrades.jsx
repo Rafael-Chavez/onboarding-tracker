@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
+import { EmailNotificationService } from '../services/emailNotifications';
 
 export default function PendingTrades({ employeeId, employeeName, onTradeUpdate }) {
   const [trades, setTrades] = useState([]);
@@ -107,7 +108,16 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
 
       if (respondentWeekError) throw respondentWeekError;
 
-      alert('Trade accepted successfully! All shifts for both weeks have been swapped.');
+      // Send email notification for accepted trade
+      await EmailNotificationService.notifyShiftTrade({
+        initiatorName: trade.initiator.name,
+        respondentName: trade.respondent.name,
+        initiatorShiftDate: trade.initiator_shift.shift_date,
+        respondentShiftDate: trade.respondent_shift.shift_date,
+        status: 'accepted'
+      });
+
+      alert('Trade accepted successfully! All shifts for both weeks have been swapped.\n\nAn email notification has been sent to the admin.');
       loadTrades();
       if (onTradeUpdate) onTradeUpdate();
     } catch (error) {

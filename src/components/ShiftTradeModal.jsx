@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
+import { EmailNotificationService } from '../services/emailNotifications';
 
 export default function ShiftTradeModal({
   isOpen,
@@ -93,7 +94,16 @@ export default function ShiftTradeModal({
 
       if (error) throw error;
 
-      alert(`Trade request sent to ${targetEmployee.name}!`);
+      // Send email notification
+      await EmailNotificationService.notifyShiftTrade({
+        initiatorName: myEmployeeName,
+        respondentName: targetEmployee.name,
+        initiatorShiftDate: myFirstShift.shift_date,
+        respondentShiftDate: theirFirstShift.shift_date,
+        status: 'pending'
+      });
+
+      alert(`Trade request sent to ${targetEmployee.name}!\n\nAn email notification has been sent to the admin.`);
       onClose();
       setSelectedMyWeek(null);
       setTradeMessage('');
