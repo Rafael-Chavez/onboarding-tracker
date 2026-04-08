@@ -385,7 +385,6 @@ export class GoogleSheetsService {
         // Map employee names to IDs
         const employeeMap = {
           'Rafael': 1,
-          'Danreb': 2,
           'Jim': 3,
           'Marc': 4,
           'Steve': 5,

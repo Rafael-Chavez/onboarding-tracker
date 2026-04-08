@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 
-const EMPLOYEES = ['All', 'Rafael', 'Danreb', 'Jim', 'Marc', 'Steve', 'Erick'];
+const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
 
 function getMonthOptions(onboardings) {
