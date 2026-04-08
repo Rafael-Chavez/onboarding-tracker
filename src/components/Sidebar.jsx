@@ -1,8 +1,7 @@
 import { useAuth } from '../contexts/AuthContext';
-import { memo } from 'react';
 import { getNightShiftInfo } from '../utils/nightShiftUtils';
 
-function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
+export default function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
   const { logout } = useAuth();
   const { current, upcoming } = getNightShiftInfo();
 
@@ -300,5 +299,3 @@ function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
     </div>
   );
 }
-
-export default memo(Sidebar);
