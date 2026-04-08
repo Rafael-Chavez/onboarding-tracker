@@ -2,7 +2,7 @@ import { useState, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import OriginalApp from '../OriginalApp';
 import AdminShiftAssignment from './AdminShiftAssignment';
-import ShiftCalendar from './ShiftCalendar';
+import NightShiftCalendarView from './NightShiftCalendarView';
 import EmailNotificationViewer from './EmailNotificationViewer';
 import Sidebar from './Sidebar';
 
@@ -40,13 +40,10 @@ export default function AdminDashboard() {
                 <div className="lg:col-span-2">
                   <div className="bg-white/5 rounded-xl p-6 border border-white/10 backdrop-blur-md">
                     <h3 className="text-white font-semibold text-lg mb-4">Shift Calendar</h3>
-                    <ShiftCalendar
+                    <NightShiftCalendarView
                       key={refreshKey}
                       employeeId={null}
-                      onShiftSelect={(shift, date) => {
-                        // Calendar is read-only for admins in this view
-                        console.log('Shift selected:', shift, date);
-                      }}
+                      employeeName={currentUser?.displayName || currentUser?.email}
                     />
                   </div>
                 </div>
