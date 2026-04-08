@@ -1,4 +1,4 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import OriginalApp from '../OriginalApp';
 import AdminShiftAssignment from './AdminShiftAssignment';
@@ -7,9 +7,16 @@ import EmailNotificationViewer from './EmailNotificationViewer';
 import Sidebar from './Sidebar';
 
 export default function AdminDashboard() {
-  const { logout, currentUser } = useAuth();
+  const { currentUser } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isPending, startTransition] = useTransition();
+
+  const handleViewChange = useCallback((newView) => {
+    startTransition(() => {
+      setCurrentView(newView);
+    });
+  }, []);
 
   const handleShiftCreated = useCallback(() => {
     // Trigger a refresh of the calendar
@@ -82,12 +89,12 @@ export default function AdminDashboard() {
     <div className="flex min-h-screen" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
       <Sidebar
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         employeeName={currentUser?.displayName || currentUser?.email}
         isAdmin={true}
       />
 
-      <div className="flex-1 overflow-auto">
+      <div className={`flex-1 overflow-auto transition-opacity duration-300 ${isPending ? 'opacity-50' : 'opacity-100'}`}>
         {renderContent()}
       </div>
 

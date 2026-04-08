@@ -1,17 +1,38 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { supabase } from '../config/supabase';
 
+// Helper to extract color from gradient class
+const getGradientColor = (colorClass) => {
+  const colorMap = {
+    'from-purple-500': '#a855f7',
+    'from-blue-500': '#3b82f6',
+    'from-green-500': '#22c55e',
+    'from-yellow-500': '#eab308',
+    'from-red-500': '#ef4444',
+    'from-pink-500': '#ec4899',
+    'from-cyan-500': '#06b6d4',
+    'from-orange-500': '#f97316',
+    'from-indigo-500': '#6366f1',
+    'from-teal-500': '#14b8a6',
+  };
+
+  for (const [key, value] of Object.entries(colorMap)) {
+    if (colorClass.includes(key)) return value;
+  }
+  return '#9ca3af'; // default gray
+};
+
 // Component to draw connection lines between nightshift weeks
-function ShiftConnectionLines({ shifts }) {
+const ShiftConnectionLines = memo(({ shifts, calendarRef }) => {
   const svgRef = useRef(null);
 
   useEffect(() => {
-    if (!svgRef.current || !shifts.length) return;
+    if (!svgRef.current || !shifts.length || !calendarRef.current) return;
 
     // Get calendar tiles to calculate positions
-    const calendarElement = document.querySelector('.react-calendar__month-view__days');
+    const calendarElement = calendarRef.current.querySelector('.react-calendar__month-view__days');
     if (!calendarElement) return;
 
     const tiles = calendarElement.querySelectorAll('.react-calendar__tile');
@@ -34,54 +55,48 @@ function ShiftConnectionLines({ shifts }) {
       shiftsByEmployee[empId].weeks[weekStart].push(shift);
     });
 
-    // Draw lines for each employee
+    // Pre-calculate tile positions to avoid repeated layout thrashing
+    const tileMap = new Map();
+    tiles.forEach(tile => {
+      const abbr = tile.querySelector('abbr');
+      if (abbr) {
+        const dateStr = abbr.getAttribute('aria-label');
+        if (dateStr) {
+          const tileDateStr = new Date(dateStr).toDateString();
+          tileMap.set(tileDateStr, tile.getBoundingClientRect());
+        }
+      }
+    });
+
+    const calendarRect = calendarElement.getBoundingClientRect();
     const lines = [];
-    Object.entries(shiftsByEmployee).forEach(([empId, { weeks, employee }]) => {
+
+    Object.entries(shiftsByEmployee).forEach(([, { weeks, employee }]) => {
       const weekStarts = Object.keys(weeks).sort();
 
-      // Connect each week to the next week for this employee
       for (let i = 0; i < weekStarts.length - 1; i++) {
         const currentWeek = weeks[weekStarts[i]];
         const nextWeek = weeks[weekStarts[i + 1]];
 
-        // Get the last shift of current week
-        const lastShift = currentWeek.sort((a, b) =>
-          new Date(b.shift_date) - new Date(a.shift_date)
-        )[0];
+        const lastShift = currentWeek.reduce((prev, curr) =>
+          new Date(curr.shift_date) > new Date(prev.shift_date) ? curr : prev
+        );
 
-        // Get the first shift of next week
-        const firstShift = nextWeek.sort((a, b) =>
-          new Date(a.shift_date) - new Date(b.shift_date)
-        )[0];
+        const firstShift = nextWeek.reduce((prev, curr) =>
+          new Date(curr.shift_date) < new Date(prev.shift_date) ? curr : prev
+        );
 
-        // Find the tile elements for these dates
-        const lastTile = Array.from(tiles).find(tile => {
-          const abbr = tile.querySelector('abbr');
-          if (!abbr) return false;
-          const dateStr = abbr.getAttribute('aria-label');
-          const tileDate = new Date(dateStr);
-          const shiftDate = new Date(lastShift.shift_date + 'T00:00:00');
-          return tileDate.toDateString() === shiftDate.toDateString();
-        });
+        const lastShiftDateStr = new Date(lastShift.shift_date + 'T00:00:00').toDateString();
+        const firstShiftDateStr = new Date(firstShift.shift_date + 'T00:00:00').toDateString();
 
-        const firstTile = Array.from(tiles).find(tile => {
-          const abbr = tile.querySelector('abbr');
-          if (!abbr) return false;
-          const dateStr = abbr.getAttribute('aria-label');
-          const tileDate = new Date(dateStr);
-          const shiftDate = new Date(firstShift.shift_date + 'T00:00:00');
-          return tileDate.toDateString() === shiftDate.toDateString();
-        });
+        const lastRect = tileMap.get(lastShiftDateStr);
+        const firstRect = tileMap.get(firstShiftDateStr);
 
-        if (lastTile && firstTile) {
-          const rect1 = lastTile.getBoundingClientRect();
-          const rect2 = firstTile.getBoundingClientRect();
-          const calendarRect = calendarElement.getBoundingClientRect();
-
-          const x1 = rect1.left + rect1.width / 2 - calendarRect.left;
-          const y1 = rect1.top + rect1.height / 2 - calendarRect.top;
-          const x2 = rect2.left + rect2.width / 2 - calendarRect.left;
-          const y2 = rect2.top + rect2.height / 2 - calendarRect.top;
+        if (lastRect && firstRect) {
+          const x1 = lastRect.left + lastRect.width / 2 - calendarRect.left;
+          const y1 = lastRect.top + lastRect.height / 2 - calendarRect.top;
+          const x2 = firstRect.left + firstRect.width / 2 - calendarRect.left;
+          const y2 = firstRect.top + firstRect.height / 2 - calendarRect.top;
 
           const color = employee?.color || 'from-gray-500 to-gray-600';
           const gradientColor = getGradientColor(color);
@@ -93,20 +108,16 @@ function ShiftConnectionLines({ shifts }) {
       }
     });
 
-    // Render lines
+    // Render lines efficiently
     if (svgRef.current) {
-      svgRef.current.innerHTML = '';
-      lines.forEach((line, idx) => {
+      const fragment = document.createDocumentFragment();
+      lines.forEach((line) => {
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-
-        // Create a curved path
         const midX = (line.x1 + line.x2) / 2;
         const midY = (line.y1 + line.y2) / 2;
         const dx = line.x2 - line.x1;
         const dy = line.y2 - line.y1;
         const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Control point for curve (perpendicular to the line)
         const controlOffset = Math.min(distance * 0.2, 20);
         const controlX = midX - (dy / distance) * controlOffset;
         const controlY = midY + (dx / distance) * controlOffset;
@@ -119,36 +130,15 @@ function ShiftConnectionLines({ shifts }) {
         path.setAttribute('opacity', '0.6');
         path.setAttribute('class', 'shift-connection-line');
 
-        // Add title for tooltip
         const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
         title.textContent = `${line.employee}'s shift continuation`;
         path.appendChild(title);
-
-        svgRef.current.appendChild(path);
+        fragment.appendChild(path);
       });
+      svgRef.current.innerHTML = '';
+      svgRef.current.appendChild(fragment);
     }
-  }, [shifts]);
-
-  // Helper to extract color from gradient class
-  const getGradientColor = (colorClass) => {
-    const colorMap = {
-      'from-purple-500': '#a855f7',
-      'from-blue-500': '#3b82f6',
-      'from-green-500': '#22c55e',
-      'from-yellow-500': '#eab308',
-      'from-red-500': '#ef4444',
-      'from-pink-500': '#ec4899',
-      'from-cyan-500': '#06b6d4',
-      'from-orange-500': '#f97316',
-      'from-indigo-500': '#6366f1',
-      'from-teal-500': '#14b8a6',
-    };
-
-    for (const [key, value] of Object.entries(colorMap)) {
-      if (colorClass.includes(key)) return value;
-    }
-    return '#9ca3af'; // default gray
-  };
+  }, [shifts, calendarRef]);
 
   return (
     <svg
@@ -164,7 +154,7 @@ function ShiftConnectionLines({ shifts }) {
       }}
     />
   );
-}
+});
 
 export default function ShiftCalendar({ employeeId, onShiftSelect }) {
   const [shifts, setShifts] = useState([]);
@@ -172,16 +162,16 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showConnectionLines, setShowConnectionLines] = useState(true);
+  const calendarRef = useRef(null);
 
   useEffect(() => {
     loadShifts();
-  }, [employeeId, currentMonth]);
+  }, [employeeId, currentMonth, loadShifts]);
 
-  const loadShifts = async () => {
+  const loadShifts = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Get first and last day of the displayed month(s)
       const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
       const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 2, 0);
 
@@ -202,35 +192,23 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth]);
 
-  const getShiftForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return shifts.find(shift => shift.shift_date === dateStr);
-  };
-
-  // Get all shifts for a specific employee grouped by week
-  const getEmployeeShiftsByWeek = (employee_id) => {
-    const employeeShifts = shifts.filter(shift => shift.employee_id === employee_id);
-    const weeks = {};
-
-    employeeShifts.forEach(shift => {
-      const weekStart = shift.week_start_date;
-      if (!weeks[weekStart]) {
-        weeks[weekStart] = [];
-      }
-      weeks[weekStart].push(shift);
+  const shiftsMap = useMemo(() => {
+    const map = new Map();
+    shifts.forEach(shift => {
+      map.set(shift.shift_date, shift);
     });
+    return map;
+  }, [shifts]);
 
-    return Object.values(weeks).map(weekShifts => ({
-      weekStart: weekShifts[0].week_start_date,
-      shifts: weekShifts.sort((a, b) => new Date(a.shift_date) - new Date(b.shift_date)),
-      employee: weekShifts[0].employee
-    }));
-  };
+  const getShiftForDate = useCallback((date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return shiftsMap.get(dateStr);
+  }, [shiftsMap]);
 
   // Group consecutive shifts for bar display
-  const getShiftRanges = () => {
+  const shiftRanges = useMemo(() => {
     const ranges = [];
     const sortedShifts = [...shifts].sort((a, b) =>
       new Date(a.shift_date) - new Date(b.shift_date)
@@ -242,7 +220,6 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
       const shiftDate = new Date(shift.shift_date + 'T00:00:00');
 
       if (!currentRange || currentRange.employee_id !== shift.employee_id) {
-        // Start new range
         if (currentRange) ranges.push(currentRange);
         currentRange = {
           employee_id: shift.employee_id,
@@ -252,16 +229,13 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           shifts: [shift]
         };
       } else {
-        // Check if consecutive
         const lastDate = new Date(currentRange.endDate);
         const dayDiff = Math.floor((shiftDate - lastDate) / (1000 * 60 * 60 * 24));
 
         if (dayDiff === 1) {
-          // Extend current range
           currentRange.endDate = shiftDate;
           currentRange.shifts.push(shift);
         } else {
-          // Gap detected, start new range
           ranges.push(currentRange);
           currentRange = {
             employee_id: shift.employee_id,
@@ -276,9 +250,9 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
 
     if (currentRange) ranges.push(currentRange);
     return ranges;
-  };
+  }, [shifts]);
 
-  const getTileContent = ({ date, view }) => {
+  const getTileContent = useCallback(({ date, view }) => {
     if (view !== 'month') return null;
 
     const shift = getShiftForDate(date);
@@ -287,13 +261,9 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     const isOwn = employeeId && shift.employee_id === employeeId;
     const employeeName = shift.employee?.name || 'Unknown';
     const employeeInitial = employeeName[0];
-
-    // Get color class from employee color gradient
     const colorClass = shift.employee?.color || 'from-gray-500 to-gray-600';
 
-    // Check if this is part of a range
-    const ranges = getShiftRanges();
-    const range = ranges.find(r =>
+    const range = shiftRanges.find(r =>
       r.employee_id === shift.employee_id &&
       date >= r.startDate &&
       date <= r.endDate
@@ -304,7 +274,6 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
 
     return (
       <div className="flex flex-col items-center justify-center mt-1 relative">
-        {/* Colored bar for ranges */}
         {range && range.shifts.length > 1 && (
           <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${colorClass} ${
             isRangeStart ? 'rounded-l-full' : ''
@@ -324,7 +293,6 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
           {employeeInitial}
         </div>
 
-        {/* Show date range label on start date */}
         {isRangeStart && range.shifts.length > 1 && (
           <div className="text-[8px] text-white/80 font-semibold mt-1 whitespace-nowrap">
             {employeeName}
@@ -336,9 +304,17 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
         )}
       </div>
     );
-  };
+  }, [getShiftForDate, employeeId, shiftRanges]);
 
-  const getTileClassName = ({ date, view }) => {
+  const getCurrentWeekStart = useCallback(() => {
+    const today = new Date();
+    const day = today.getDay(); // 0 = Sunday
+    const sunday = new Date(today);
+    sunday.setDate(sunday.getDate() - day);
+    return sunday.toISOString().split('T')[0];
+  }, []);
+
+  const getTileClassName = useCallback(({ date, view }) => {
     if (view !== 'month') return '';
 
     const shift = getShiftForDate(date);
@@ -350,11 +326,8 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     const tileDate = new Date(date);
     tileDate.setHours(0, 0, 0, 0);
 
-    // Check if this date is in the current work week (Sunday-Thursday)
     const isCurrentWeek = shift.week_start_date === getCurrentWeekStart();
     const isToday = tileDate.getTime() === today.getTime();
-
-    // Get employee ID for custom styling
     const empId = shift.employee_id;
 
     let className = 'night-shift-tile';
@@ -376,27 +349,19 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
     }
 
     return className;
-  };
+  }, [getShiftForDate, employeeId, getCurrentWeekStart]);
 
-  const getCurrentWeekStart = () => {
-    const today = new Date();
-    const day = today.getDay(); // 0 = Sunday
-    const sunday = new Date(today);
-    sunday.setDate(sunday.getDate() - day);
-    return sunday.toISOString().split('T')[0];
-  };
-
-  const handleDateClick = (date) => {
+  const handleDateClick = useCallback((date) => {
     const shift = getShiftForDate(date);
     setSelectedDate(date);
 
     if (onShiftSelect && shift) {
       onShiftSelect(shift, date);
     }
-  };
+  }, [getShiftForDate, onShiftSelect]);
 
   return (
-    <div className="shift-calendar-container" style={{ position: 'relative' }}>
+    <div className="shift-calendar-container" style={{ position: 'relative' }} ref={calendarRef}>
       <style>{`
         .shift-calendar-container {
           background: rgba(255, 255, 255, 0.05);
@@ -577,7 +542,7 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
               onActiveStartDateChange={({ activeStartDate }) => setCurrentMonth(activeStartDate)}
               className="w-full"
             />
-            {showConnectionLines && <ShiftConnectionLines shifts={shifts} />}
+            {showConnectionLines && <ShiftConnectionLines shifts={shifts} calendarRef={calendarRef} />}
           </div>
 
           <div className="mt-4 space-y-2">

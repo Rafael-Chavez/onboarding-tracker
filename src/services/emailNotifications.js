@@ -27,6 +27,9 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
@@ -100,13 +103,15 @@ Generated: ${new Date().toLocaleString()}
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
         tradeDetails,
-        backendSent: result.success
+        backendSent: result.success,
+        error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
-        message: result.success ? 'Email sent successfully' : 'Failed to send email automatically'
+        error: result.success ? null : result.error,
+        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -173,12 +178,14 @@ Generated: ${new Date().toLocaleString()}
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
         overrideDetails,
-        backendSent: result.success
+        backendSent: result.success,
+        error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
-        message: result.success ? 'Override notification sent' : 'Failed to send override notification'
+        error: result.success ? null : result.error,
+        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

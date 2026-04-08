@@ -19,11 +19,11 @@ export default function EmailNotificationViewer() {
   }, []);
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
-  const [testEmailSent, setTestEmailSent] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState(null); // { success: boolean, message: string }
 
   useEffect(() => {
     loadNotifications();
-  }, []);
+  }, [loadNotifications]);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,7 +31,7 @@ export default function EmailNotificationViewer() {
   }, []);
 
   const sendTestEmail = useCallback(async () => {
-    await EmailNotificationService.notifyShiftTrade({
+    const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
       initiatorShiftDate: '2026-04-13',
@@ -39,8 +39,8 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailSent(true);
-    setTimeout(() => setTestEmailSent(false), 3000);
+    setTestEmailStatus({ success: result.success, message: result.message });
+    setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -64,9 +64,9 @@ export default function EmailNotificationViewer() {
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Button */}
       <div className="flex items-center gap-2">
-        {testEmailSent && (
-          <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in">
-            ✓ Test email sent!
+        {testEmailStatus && (
+          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
 
@@ -136,6 +136,11 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/80 text-xs font-medium uppercase tracking-wide">
                           {notification.type?.replace('_', ' ')}
                         </span>
+                        {notification.backendSent === false && (
+                          <span className="bg-red-500/20 text-red-300 text-[10px] px-1.5 py-0.5 rounded border border-red-500/30 font-bold uppercase tracking-tight">
+                            FAILED
+                          </span>
+                        )}
                       </div>
                       <span className="text-white/40 text-xs">
                         {formatTimestamp(notification.timestamp)}
@@ -151,9 +156,16 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-white/40">To:</span>
-                      <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/40">To:</span>
+                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                      </div>
+                      {notification.error && (
+                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                          {notification.error}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
