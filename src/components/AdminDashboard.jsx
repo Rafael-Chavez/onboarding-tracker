@@ -4,10 +4,11 @@ import OriginalApp from '../OriginalApp';
 import AdminShiftAssignment from './AdminShiftAssignment';
 import ShiftCalendar from './ShiftCalendar';
 import EmailNotificationViewer from './EmailNotificationViewer';
+import Sidebar from './Sidebar';
 
 export default function AdminDashboard() {
   const { logout, currentUser } = useAuth();
-  const [showShiftManager, setShowShiftManager] = useState(false);
+  const [currentView, setCurrentView] = useState('dashboard');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleShiftCreated = useCallback(() => {
@@ -15,75 +16,88 @@ export default function AdminDashboard() {
     setRefreshKey(prev => prev + 1);
   }, []);
 
-  const toggleShiftManager = useCallback(() => {
-    setShowShiftManager(prev => !prev);
-  }, []);
+  const renderContent = () => {
+    switch (currentView) {
+      case 'nightshift':
+        return (
+          <div className="p-4 md:p-8">
+            <div className="max-w-7xl mx-auto mb-6">
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold text-white">Night Shift Manager</h2>
+                <p className="text-white/60 text-sm mt-1">Assign and manage night shift schedules</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left side - Staff Assignment */}
+                <div className="lg:col-span-1">
+                  <div className="bg-white/5 rounded-xl p-6 border border-white/10 backdrop-blur-md">
+                    <h3 className="text-white font-semibold text-lg mb-4">Assign Shift</h3>
+                    <AdminShiftAssignment onShiftCreated={handleShiftCreated} />
+                  </div>
+                </div>
+
+                {/* Right side - Calendar View */}
+                <div className="lg:col-span-2">
+                  <div className="bg-white/5 rounded-xl p-6 border border-white/10 backdrop-blur-md">
+                    <h3 className="text-white font-semibold text-lg mb-4">Shift Calendar</h3>
+                    <ShiftCalendar
+                      key={refreshKey}
+                      employeeId={null}
+                      onShiftSelect={(shift, date) => {
+                        // Calendar is read-only for admins in this view
+                        console.log('Shift selected:', shift, date);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'notifications':
+        return (
+          <div className="p-4 md:p-8">
+             <div className="max-w-7xl mx-auto">
+               <div className="mb-8">
+                <h2 className="text-3xl font-bold text-white">Email Notifications</h2>
+                <p className="text-white/60 text-sm mt-1">View logs of sent email notifications</p>
+              </div>
+              <EmailNotificationViewer />
+             </div>
+          </div>
+        );
+
+      case 'dashboard':
+      default:
+        return (
+          <div className="admin-app-wrapper">
+             <OriginalApp />
+          </div>
+        );
+    }
+  };
 
   return (
-    <div>
-      {/* Add logout button to the header */}
-      <div className="fixed top-4 right-4 z-50">
-        <div className="bg-white/10 backdrop-blur-md rounded-lg shadow-lg px-4 py-2 border border-white/20 flex items-center gap-4">
-          <span className="text-white text-sm">
-            {currentUser?.displayName || currentUser?.email}
-          </span>
-          <button
-            onClick={logout}
-            className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded border border-white/20 transition-all text-sm"
-          >
-            Sign Out
-          </button>
-        </div>
+    <div className="flex min-h-screen" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
+      <Sidebar
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        employeeName={currentUser?.displayName || currentUser?.email}
+        isAdmin={true}
+      />
+
+      <div className="flex-1 overflow-auto">
+        {renderContent()}
       </div>
 
-      {/* Night Shift Manager Section */}
-      <div className="p-4 md:p-8" style={{ background: 'radial-gradient(circle at top left, #1e1b4b, #312e81, #1e1b4b)', backgroundAttachment: 'fixed' }}>
-        <div className="max-w-7xl mx-auto mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Night Shift Manager</h2>
-              <p className="text-white/60 text-sm mt-1">Assign and manage night shift schedules</p>
-            </div>
-            <button
-              onClick={toggleShiftManager}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-colors shadow-lg"
-            >
-              {showShiftManager ? 'Hide' : 'Open'} Shift Manager
-            </button>
-          </div>
-
-          {showShiftManager && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left side - Staff Assignment */}
-              <div className="lg:col-span-1">
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                  <AdminShiftAssignment onShiftCreated={handleShiftCreated} />
-                </div>
-              </div>
-
-              {/* Right side - Calendar View */}
-              <div className="lg:col-span-2">
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                  <h3 className="text-white font-semibold text-lg mb-4">Shift Calendar</h3>
-                  <ShiftCalendar
-                    key={refreshKey}
-                    employeeId={null}
-                    onShiftSelect={(shift, date) => {
-                      // Calendar is read-only for admins in this view
-                      console.log('Shift selected:', shift, date);
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <OriginalApp />
-
-      {/* Email Notification Viewer */}
-      <EmailNotificationViewer />
+      <style>{`
+        .admin-app-wrapper .min-h-screen {
+          min-height: auto !important;
+          background: transparent !important;
+          padding: 1rem !important;
+        }
+      `}</style>
     </div>
   );
 }
