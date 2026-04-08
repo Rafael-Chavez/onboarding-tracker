@@ -1,10 +1,16 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
 import NightShiftBanner from './components/NightShiftBanner'
 import PendingApprovalsAlert from './components/PendingApprovalsAlert'
 import MonthlyStatsOverview from './components/MonthlyStatsOverview'
+import DashboardHeader from './components/DashboardHeader'
+import ScheduledOnboardingsList from './components/ScheduledOnboardingsList'
+import OnboardingForm from './components/OnboardingForm'
+import GoogleSheetsSync from './components/GoogleSheetsSync'
+import EmployeeHistoryModal from './components/EmployeeHistoryModal'
+import AllCompletedStats from './components/AllCompletedStats'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -45,24 +51,24 @@ function App() {
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
-  // Removed attendance state - will be managed manually in Google Sheets
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
+  const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
+
+  const fetchOnboardings = useCallback(async () => {
+    const result = await SupabaseService.getAllOnboardings()
+    if (result.success) {
+      setOnboardings(result.onboardings)
+    } else {
+      console.error('Error loading onboardings:', result.error)
+    }
+  }, []);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
-    const fetchOnboardings = async () => {
-      const result = await SupabaseService.getAllOnboardings()
-      if (result.success) {
-        setOnboardings(result.onboardings)
-      } else {
-        console.error('Error loading onboardings:', result.error)
-      }
-    }
-
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -74,7 +80,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [])
+  }, [fetchOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -157,7 +163,6 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-    // Real-time subscription will update the UI automatically
   }, [])
 
   const approveCompletion = useCallback(async (id) => {
@@ -246,7 +251,6 @@ function App() {
           console.error('Error syncing attendance update to Sheets:', error)
         }
       }
-      // Real-time subscription will update the UI automatically
     } else {
       console.error('Error updating attendance:', result.error)
     }
@@ -284,18 +288,22 @@ function App() {
   }, [])
 
   const navigateMonth = useCallback((direction) => {
-    setCurrentDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setCurrentDate(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
   }, [])
 
   const navigateOverviewMonth = useCallback((direction) => {
-    setOverviewDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setOverviewDate(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
   }, [])
 
@@ -408,37 +416,6 @@ function App() {
     })
   }, [])
 
-  const syncToGoogleSheets = useCallback(async () => {
-    setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets (attendance preserved)...', type: '' })
-    
-    try {
-      const result = await GoogleSheetsService.syncAllOnboardings(onboardings)
-      
-      if (result.success) {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: `Successfully synced ${result.syncedCount} onboardings to Google Sheets!`, 
-          type: 'success' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-      } else {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: `Sync failed: ${result.error}`, 
-          type: 'error' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-      }
-    } catch (error) {
-      setSyncStatus({ 
-        isLoading: false, 
-        message: `Sync failed: ${error.message}`, 
-        type: 'error' 
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-    }
-  }, [onboardings])
-
   const testSheetsConnection = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
     
@@ -523,7 +500,6 @@ function App() {
               message: `Successfully imported ${successCount} new onboarding${successCount !== 1 ? 's' : ''} from Google Sheets!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
               type: 'success'
             })
-            // Real-time subscription will update the UI automatically
           } else {
             setSyncStatus({
               isLoading: false,
@@ -565,52 +541,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
       {/* Header */}
-      <div className="w-full mb-6">
-        <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                Employee Onboarding Tracker
-              </h1>
-              <div className="flex items-center gap-6 text-sm text-blue-200">
-                <span className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  {stats.thisMonthCompleted}/{stats.thisMonth} sessions completed
-                </span>
-                <span className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  {stats.total} total
-                </span>
-              </div>
-            </div>
-
-            {/* Sync Status Message */}
-            {syncStatus.message && (
-              <div className={`backdrop-blur-sm rounded-lg border p-3 transition-all duration-300 ${
-                syncStatus.type === 'success'
-                  ? 'bg-green-500/20 border-green-400/30 text-green-100'
-                  : syncStatus.type === 'error'
-                  ? 'bg-red-500/20 border-red-400/30 text-red-100'
-                  : 'bg-blue-500/20 border-blue-400/30 text-blue-100'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {syncStatus.type === 'success' && (
-                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                  {syncStatus.type === 'error' && (
-                    <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  )}
-                  <span className="text-sm font-medium">{syncStatus.message}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <DashboardHeader stats={stats} syncStatus={syncStatus} />
 
       {/* Night Shift Tracker */}
       <NightShiftBanner />
@@ -633,211 +564,28 @@ function App() {
       </div>
 
       {/* Employee Session History Modal */}
-      {selectedEmployeeHistory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {(() => {
-              const employee = employees.find(e => e.id === selectedEmployeeHistory)
-              const sessions = getEmployeeSessions(selectedEmployeeHistory, employeeHistoryViewMode, employeeHistoryMonth)
-
-              return (
-                <>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-full bg-gradient-to-r ${employee?.color} flex items-center justify-center shadow-lg`}>
-                        <span className="text-white font-bold text-2xl">
-                          {employee?.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-white">{employee?.name}'s Sessions</h2>
-                        <p className="text-blue-200 text-sm">{sessions.length} {employeeHistoryViewMode === 'monthly' ? 'sessions this month' : 'total sessions'}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedEmployeeHistory(null)
-                        setEmployeeHistoryViewMode('all')
-                        setEmployeeHistoryMonth(new Date())
-                      }}
-                      className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* View Mode Selector and Month Navigation */}
-                  <div className="mb-6 space-y-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <label className="text-white text-sm font-medium mb-2 block">View Mode</label>
-                        <select
-                          value={employeeHistoryViewMode}
-                          onChange={(e) => setEmployeeHistoryViewMode(e.target.value)}
-                          className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                        >
-                          <option value="all" className="text-gray-800">All Time</option>
-                          <option value="monthly" className="text-gray-800">Monthly View</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Month Navigation - Only show in monthly mode */}
-                    {employeeHistoryViewMode === 'monthly' && (
-                      <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
-                        <div className="flex items-center justify-between">
-                          <button
-                            onClick={() => navigateEmployeeHistoryMonth(-1)}
-                            className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                          </button>
-
-                          <h3 className="text-xl font-bold text-white">
-                            {formatDateForDisplay(employeeHistoryMonth)}
-                          </h3>
-
-                          <button
-                            onClick={() => navigateEmployeeHistoryMonth(1)}
-                            className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    {sessions.length > 0 ? (
-                      sessions.map((session, index) => (
-                        <div
-                          key={session.id}
-                          className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <span className="text-white/60 text-sm font-medium">#{sessions.length - index}</span>
-                                <div className="font-bold text-white text-lg">{session.clientName}</div>
-                                <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
-                                  Session #{session.sessionNumber}
-                                </span>
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-2">
-                                <div className="text-blue-200">
-                                  <span className="text-white/60">Account:</span> {session.accountNumber}
-                                </div>
-                                <div className="text-blue-200">
-                                  <span className="text-white/60">Date:</span> {session.formattedDate}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${
-                                  session.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
-                                  session.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
-                                  session.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
-                                  session.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
-                                  session.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
-                                  'bg-blue-500/20 text-blue-300 border-blue-400/30'
-                                }`}>
-                                  {session.attendance === 'pending' ? 'Pending' :
-                                   session.attendance === 'completed' ? 'Completed' :
-                                   session.attendance === 'cancelled' ? 'Cancelled' :
-                                   session.attendance === 'rescheduled' ? 'Rescheduled' :
-                                   session.attendance === 'no-show' ? 'No Show' :
-                                   'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-12 text-white/60">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <p>No sessions found for this employee</p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      )}
+      <div className={isPending ? 'opacity-70 pointer-events-none transition-opacity' : 'transition-opacity'}>
+      <EmployeeHistoryModal
+        selectedEmployeeHistory={selectedEmployeeHistory}
+        setSelectedEmployeeHistory={setSelectedEmployeeHistory}
+        employees={employees}
+        getEmployeeSessions={getEmployeeSessions}
+        employeeHistoryViewMode={employeeHistoryViewMode}
+        setEmployeeHistoryViewMode={setEmployeeHistoryViewMode}
+        employeeHistoryMonth={employeeHistoryMonth}
+        navigateEmployeeHistoryMonth={navigateEmployeeHistoryMonth}
+        formatDateForDisplay={formatDateForDisplay}
+      />
 
       {/* All Completed Stats Display */}
       {showAllCompleted && (
-        <div className="w-full mb-6 backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-          {/* Month Navigation Header */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => navigateCompletedStatsMonth(-1)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-
-            <h3 className="text-2xl font-bold text-white">
-              {formatDateForDisplay(completedStatsDate)} - Completed Stats
-            </h3>
-
-            <button
-              onClick={() => navigateCompletedStatsMonth(1)}
-              className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            {getAllCompletedStats(completedStatsDate).map(emp => (
-              <div
-                key={emp.id}
-                onClick={() => setSelectedEmployeeHistory(emp.id)}
-                className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-6 text-center hover:bg-white/10 transition-all duration-200 hover:scale-105 cursor-pointer"
-              >
-                <div className="mb-3">
-                  <div className={`w-16 h-16 mx-auto rounded-full bg-gradient-to-r ${emp.color} flex items-center justify-center shadow-lg`}>
-                    <span className="text-white font-bold text-2xl">
-                      {emp.name.charAt(0)}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-lg font-semibold text-white mb-2">{emp.name}</div>
-                <div className="text-4xl font-bold text-green-300">{emp.completed}</div>
-                <div className="text-xs text-white/60 mt-1">Completed</div>
-              </div>
-            ))}
-            {getAllCompletedStats(completedStatsDate).length === 0 && (
-              <div className="col-span-full text-center py-8 text-white/60">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <p>No completed onboardings for {formatDateForDisplay(completedStatsDate)}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <AllCompletedStats
+          completedStatsDate={completedStatsDate}
+          navigateCompletedStatsMonth={navigateCompletedStatsMonth}
+          formatDateForDisplay={formatDateForDisplay}
+          getAllCompletedStats={getAllCompletedStats}
+          setSelectedEmployeeHistory={setSelectedEmployeeHistory}
+        />
       )}
 
       {/* Main Content - Overview Left, Calendar Center, Add Form Right */}
@@ -855,108 +603,16 @@ function App() {
             />
 
             {/* Scheduled Onboardings for Selected Date */}
-            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-              <div className="mb-6">
-                <h3 className="text-xl font-bold text-white mb-2">
-                  {formatSelectedDate(selectedDate)}
-                </h3>
-                <div className="text-blue-200 text-sm">
-                  {selectedDateOnboardings.length} onboardings scheduled
-                </div>
-              </div>
-
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {selectedDateOnboardings.length > 0 ? (
-                  selectedDateOnboardings.map(onboarding => (
-                    <div
-                      key={onboarding.id}
-                      className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="font-medium text-white">{onboarding.clientName}</div>
-                            <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-full shadow-lg">
-                              #{onboarding.sessionNumber}
-                            </span>
-                          </div>
-
-                          <div className="text-sm text-blue-200 mb-2">
-                            Account: {onboarding.accountNumber}
-                          </div>
-
-                          <div className="flex items-center gap-2 mb-2 flex-wrap">
-                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-gradient-to-r ${getEmployeeColor(onboarding.employeeId)} text-white text-xs font-medium shadow-lg`}>
-                              <div className="w-2 h-2 bg-white rounded-full"></div>
-                              {onboarding.employeeName}
-                            </div>
-
-                            {onboarding.attendance === 'pending_approval' ? (
-                              // Admin approve/reject UI for pending completion requests
-                              <div className="flex items-center gap-1.5">
-                                <span className="px-2 py-1 text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded-lg">
-                                  Awaiting Approval
-                                </span>
-                                <button
-                                  onClick={() => rejectCompletion(onboarding.id)}
-                                  className="px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-all"
-                                >
-                                  ✗
-                                </button>
-                                <button
-                                  onClick={() => approveCompletion(onboarding.id)}
-                                  className="px-2 py-1 text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-all"
-                                >
-                                  ✓
-                                </button>
-                              </div>
-                            ) : (
-                              <select
-                                value={onboarding.attendance || 'pending'}
-                                onChange={(e) => updateOnboardingAttendance(onboarding.id, e.target.value)}
-                                className={`px-2 py-1 rounded-lg text-xs font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50 ${
-                                  onboarding.attendance === 'pending' ? 'bg-blue-500/20 text-blue-300 border-blue-400/30' :
-                                  onboarding.attendance === 'completed' ? 'bg-green-500/20 text-green-300 border-green-400/30' :
-                                  onboarding.attendance === 'cancelled' ? 'bg-red-500/20 text-red-300 border-red-400/30' :
-                                  onboarding.attendance === 'rescheduled' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30' :
-                                  onboarding.attendance === 'no-show' ? 'bg-orange-500/20 text-orange-300 border-orange-400/30' :
-                                  'bg-blue-500/20 text-blue-300 border-blue-400/30'
-                                }`}
-                              >
-                                <option value="pending" className="text-gray-800">Pending</option>
-                                <option value="completed" className="text-gray-800">Completed</option>
-                                <option value="no-show" className="text-gray-800">No Show</option>
-                                <option value="rescheduled" className="text-gray-800">Rescheduled</option>
-                                <option value="cancelled" className="text-gray-800">Cancelled</option>
-                              </select>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => deleteOnboarding(onboarding.id)}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-all duration-200"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-white/60">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4v6m0 0v6m6-6v6m6-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </div>
-                    <p>No onboardings scheduled</p>
-                    <p className="text-sm mt-1">Select a date to view onboardings</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ScheduledOnboardingsList
+              selectedDate={selectedDate}
+              formatSelectedDate={formatSelectedDate}
+              selectedDateOnboardings={selectedDateOnboardings}
+              getEmployeeColor={getEmployeeColor}
+              rejectCompletion={rejectCompletion}
+              approveCompletion={approveCompletion}
+              updateOnboardingAttendance={updateOnboardingAttendance}
+              deleteOnboarding={deleteOnboarding}
+            />
           </div>
 
           {/* Center - Calendar */}
@@ -1038,154 +694,30 @@ function App() {
 
           {/* Right Side - Add Onboarding Form & Google Sheets Sync */}
           <div className="xl:col-span-3 space-y-6">
-            {/* Add New Onboarding Form */}
-            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-2">
-                Add Onboarding
-              </h3>
-              <p className="text-blue-200 text-sm mb-6">
-                {selectedDate.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'short',
-                  day: 'numeric',
-                  year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-                })}
-              </p>
+            <OnboardingForm
+              selectedDate={selectedDate}
+              selectedEmployee={selectedEmployee}
+              setSelectedEmployee={setSelectedEmployee}
+              clientName={clientName}
+              setClientName={setClientName}
+              accountNumber={accountNumber}
+              setAccountNumber={setAccountNumber}
+              employees={employees}
+              addOnboarding={addOnboarding}
+            />
 
-              <div className="space-y-4">
-                <div>
-                  <label className="text-white text-sm font-medium mb-2 block">Employee</label>
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  >
-                    <option value="" className="text-gray-800">Select Employee</option>
-                    {employees.map(employee => (
-                      <option key={employee.id} value={employee.id} className="text-gray-800">
-                        {employee.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-white text-sm font-medium mb-2 block">Client Name</label>
-                  <input
-                    type="text"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Enter client name..."
-                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-white text-sm font-medium mb-2 block">Account Number</label>
-                  <input
-                    type="text"
-                    value={accountNumber}
-                    onChange={(e) => setAccountNumber(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
-                    placeholder="Enter account number..."
-                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
-                  />
-                </div>
-
-                <button
-                  onClick={addOnboarding}
-                  disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
-                >
-                  Add Onboarding
-                </button>
-              </div>
-            </div>
-
-            {/* Google Sheets Sync */}
-            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
-              <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Google Sheets
-              </h3>
-              <p className="text-blue-200 text-sm mb-6">Sync data with Google Sheets</p>
-
-              <div className="space-y-3">
-                <button
-                  disabled={true}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-green-400/50 opacity-50 cursor-not-allowed transition-all duration-200 shadow-lg pointer-events-none"
-                >
-                  Sync {onboardings.length} Records
-                </button>
-
-                <div className="flex items-center gap-2 px-2">
-                  <input
-                    type="checkbox"
-                    id="autoSync"
-                    checked={autoSync}
-                    onChange={(e) => setAutoSync(e.target.checked)}
-                    className="w-4 h-4 text-green-500 bg-white/10 border-white/30 rounded focus:ring-green-400/50 focus:ring-2"
-                  />
-                  <label htmlFor="autoSync" className="text-sm text-white/80 cursor-pointer">
-                    Auto-sync new entries
-                  </label>
-                </div>
-
-                <div className="pt-3 border-t border-white/10 space-y-2">
-                  <button
-                    onClick={importFromGoogleSheets}
-                    disabled={syncStatus.isLoading}
-                    className="w-full px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
-                  >
-                    📥 Import from Sheet
-                  </button>
-                  <button
-                    onClick={testSheetsConnection}
-                    disabled={syncStatus.isLoading}
-                    className="w-full px-4 py-2 text-sm bg-white/10 text-white/80 rounded-lg hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                  >
-                    Test Connection
-                  </button>
-
-                  <details className="pt-2">
-                    <summary className="text-xs text-white/60 cursor-pointer hover:text-white/80">Debug Tools</summary>
-                    <div className="mt-2 space-y-2">
-                      <button
-                        onClick={async () => {
-                          console.log('Current onboardings data (first 3):', onboardings.slice(0, 3));
-                          console.log('Sample onboarding structure:', onboardings[0]);
-                          const result = await GoogleSheetsService.debugGoogleSheet();
-                          console.log('Debug result:', result);
-                        }}
-                        disabled={syncStatus.isLoading}
-                        className="w-full px-4 py-1.5 text-xs bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        Debug Sheet
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const result = await GoogleSheetsService.submitData('forceHeaders', {});
-                            console.log('Force headers result:', result);
-                          } catch (error) {
-                            console.error('Force headers error:', error);
-                          }
-                        }}
-                        disabled={syncStatus.isLoading}
-                        className="w-full px-4 py-1.5 text-xs bg-green-500/20 text-green-300 rounded-lg hover:bg-green-500/30 focus:outline-none focus:ring-2 focus:ring-green-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                      >
-                        Force Headers
-                      </button>
-                    </div>
-                  </details>
-                </div>
-              </div>
-            </div>
+            <GoogleSheetsSync
+              onboardingsLength={onboardings.length}
+              autoSync={autoSync}
+              setAutoSync={setAutoSync}
+              importFromGoogleSheets={importFromGoogleSheets}
+              syncStatus={syncStatus}
+              testSheetsConnection={testSheetsConnection}
+              GoogleSheetsService={GoogleSheetsService}
+            />
           </div>
         </div>
-
+      </div>
       </div>
     </div>
   )
