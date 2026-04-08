@@ -9,6 +9,7 @@ import ShiftCalendar from './ShiftCalendar';
 import ShiftTradeModal from './ShiftTradeModal';
 import PendingTrades from './PendingTrades';
 import TeamShiftSelector from './TeamShiftSelector';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId, logout } = useAuth();
@@ -23,7 +24,6 @@ export default function TeamDashboard() {
   const [importStatus, setImportStatus] = useState({ isLoading: false, message: '', type: '' });
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
-    { id: 2, name: 'Danreb', color: 'from-purple-500 to-pink-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
@@ -800,6 +800,9 @@ export default function TeamDashboard() {
           targetShifts={targetShifts}
         />
       </div>
+
+      {/* Email Notification Viewer */}
+      <EmailNotificationViewer />
     </div>
   );
 }

@@ -49,10 +49,11 @@ Generated: ${new Date().toLocaleString()}
 
       // For production, you would integrate with an email service like SendGrid, Mailgun, or AWS SES
       // For now, we'll log it and optionally open mailto
-      console.log('📧 Email notification would be sent:');
-      console.log('To:', ADMIN_EMAIL);
-      console.log('Subject:', subject);
-      console.log('Body:', body);
+      console.log('%c📧 EMAIL NOTIFICATION SENT', 'background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+      console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
+      console.log('%cSubject:', 'font-weight: bold;', subject);
+      console.log('%cBody:', 'font-weight: bold;', '\n' + body);
+      console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
       this.storeNotification({
@@ -115,10 +116,11 @@ Generated: ${new Date().toLocaleString()}
     `.trim();
 
     try {
-      console.log('📧 Shift override notification:');
-      console.log('To:', ADMIN_EMAIL);
-      console.log('Subject:', subject);
-      console.log('Body:', body);
+      console.log('%c📧 SHIFT OVERRIDE NOTIFICATION', 'background: #f97316; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+      console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
+      console.log('%cSubject:', 'font-weight: bold;', subject);
+      console.log('%cBody:', 'font-weight: bold;', '\n' + body);
+      console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
         type: 'shift_override',

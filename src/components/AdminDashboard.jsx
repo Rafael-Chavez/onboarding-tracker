@@ -1,18 +1,23 @@
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import OriginalApp from '../OriginalApp';
 import AdminShiftAssignment from './AdminShiftAssignment';
 import ShiftCalendar from './ShiftCalendar';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 export default function AdminDashboard() {
   const { logout, currentUser } = useAuth();
   const [showShiftManager, setShowShiftManager] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleShiftCreated = () => {
+  const handleShiftCreated = useCallback(() => {
     // Trigger a refresh of the calendar
     setRefreshKey(prev => prev + 1);
-  };
+  }, []);
+
+  const toggleShiftManager = useCallback(() => {
+    setShowShiftManager(prev => !prev);
+  }, []);
 
   return (
     <div>
@@ -40,8 +45,8 @@ export default function AdminDashboard() {
               <p className="text-white/60 text-sm mt-1">Assign and manage night shift schedules</p>
             </div>
             <button
-              onClick={() => setShowShiftManager(!showShiftManager)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-all shadow-lg"
+              onClick={toggleShiftManager}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-colors shadow-lg"
             >
               {showShiftManager ? 'Hide' : 'Open'} Shift Manager
             </button>
@@ -76,6 +81,9 @@ export default function AdminDashboard() {
       </div>
 
       <OriginalApp />
+
+      {/* Email Notification Viewer */}
+      <EmailNotificationViewer />
     </div>
   );
 }
