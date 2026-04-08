@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { EmailNotificationService } from '../services/emailNotifications';
 
 export default function EmailNotificationViewer() {
+  const [notifications, setNotifications] = useState([]);
+  const [showViewer, setShowViewer] = useState(false);
+  const [testEmailStatus, setTestEmailStatus] = useState(null);
+
+  const loadNotifications = useCallback(() => {
+    const allNotifications = EmailNotificationService.getNotifications();
+    setNotifications(allNotifications);
+  }, []);
+
   // Add animation style
   useEffect(() => {
     const style = document.createElement('style');
@@ -17,18 +26,10 @@ export default function EmailNotificationViewer() {
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
   }, []);
-  const [notifications, setNotifications] = useState([]);
-  const [showViewer, setShowViewer] = useState(false);
-  const [testEmailStatus, setTestEmailStatus] = useState(null); // { success: boolean, message: string }
 
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
-
-  const loadNotifications = useCallback(() => {
-    const allNotifications = EmailNotificationService.getNotifications();
-    setNotifications(allNotifications);
-  }, []);
 
   const sendTestEmail = useCallback(async () => {
     const result = await EmailNotificationService.notifyShiftTrade({
