@@ -1,7 +1,39 @@
 // Email notification service for shift trades
 const ADMIN_EMAIL = 'rchavez@deconetwork.com';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+import { auth } from '../config/firebase';
 
 export const EmailNotificationService = {
+  /**
+   * Internal method to send email via backend API
+   */
+  async _sendEmailViaBackend({ to, subject, body }) {
+    try {
+      // Get the current user's ID token from Firebase
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to send notifications');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ to, subject, body }),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   /**
    * Send email notification when shifts are traded
    * @param {Object} tradeDetails - Details about the shift trade
@@ -44,15 +76,20 @@ Generated: ${new Date().toLocaleString()}
     `.trim();
 
     try {
-      // Create a mailto link (opens user's email client)
+      // Send via backend API
+      const result = await this._sendEmailViaBackend({
+        to: ADMIN_EMAIL,
+        subject,
+        body
+      });
+
+      // Create a mailto link as fallback/alternative
       const mailtoLink = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-      // For production, you would integrate with an email service like SendGrid, Mailgun, or AWS SES
-      // For now, we'll log it and optionally open mailto
-      console.log('%c📧 EMAIL NOTIFICATION SENT', 'background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+      console.log('%c📧 EMAIL NOTIFICATION ATTEMPTED', 'background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
-      console.log('%cBody:', 'font-weight: bold;', '\n' + body);
+      console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
@@ -62,13 +99,14 @@ Generated: ${new Date().toLocaleString()}
         body,
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
-        tradeDetails
+        tradeDetails,
+        backendSent: result.success
       });
 
       return {
-        success: true,
+        success: result.success,
         mailtoLink,
-        message: 'Email notification queued'
+        message: result.success ? 'Email sent successfully' : 'Failed to send email automatically'
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -116,10 +154,16 @@ Generated: ${new Date().toLocaleString()}
     `.trim();
 
     try {
+      const result = await this._sendEmailViaBackend({
+        to: ADMIN_EMAIL,
+        subject,
+        body
+      });
+
       console.log('%c📧 SHIFT OVERRIDE NOTIFICATION', 'background: #f97316; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
-      console.log('%cBody:', 'font-weight: bold;', '\n' + body);
+      console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
@@ -128,12 +172,13 @@ Generated: ${new Date().toLocaleString()}
         body,
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
-        overrideDetails
+        overrideDetails,
+        backendSent: result.success
       });
 
       return {
-        success: true,
-        message: 'Override notification queued'
+        success: result.success,
+        message: result.success ? 'Override notification sent' : 'Failed to send override notification'
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

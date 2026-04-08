@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
 import NightShiftBanner from './components/NightShiftBanner'
+import PendingApprovalsAlert from './components/PendingApprovalsAlert'
+import MonthlyStatsOverview from './components/MonthlyStatsOverview'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -20,7 +22,7 @@ function App() {
   ])
   
   // Load data from localStorage
-  const loadFromStorage = (key, defaultValue) => {
+  const loadFromStorage = useCallback((key, defaultValue) => {
     try {
       const item = localStorage.getItem(key)
       return item ? JSON.parse(item) : defaultValue
@@ -28,16 +30,16 @@ function App() {
       console.error(`Error loading ${key} from localStorage:`, error)
       return defaultValue
     }
-  }
+  }, [])
 
   // Save data to localStorage
-  const saveToStorage = (key, value) => {
+  const saveToStorage = useCallback((key, value) => {
     try {
       localStorage.setItem(key, JSON.stringify(value))
     } catch (error) {
       console.error(`Error saving ${key} to localStorage:`, error)
     }
-  }
+  }, [])
 
   const [onboardings, setOnboardings] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
@@ -77,9 +79,9 @@ function App() {
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
     saveToStorage('autoSync', autoSync)
-  }, [autoSync])
+  }, [autoSync, saveToStorage])
 
-  const addOnboarding = async () => {
+  const addOnboarding = useCallback(async () => {
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -142,9 +144,9 @@ function App() {
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
       }
     }
-  }
+  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
 
-  const deleteOnboarding = async (id) => {
+  const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
     if (!result.success) {
       console.error('Error deleting onboarding:', result.error)
@@ -156,9 +158,9 @@ function App() {
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
     // Real-time subscription will update the UI automatically
-  }
+  }, [])
 
-  const approveCompletion = async (id) => {
+  const approveCompletion = useCallback(async (id) => {
     setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
 
     const result = await SupabaseService.approveCompletion(id)
@@ -187,9 +189,9 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }
+  }, [autoSync])
 
-  const rejectCompletion = async (id) => {
+  const rejectCompletion = useCallback(async (id) => {
     setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
 
     const result = await SupabaseService.rejectCompletion(id)
@@ -218,9 +220,9 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }
+  }, [autoSync])
 
-  const updateOnboardingAttendance = async (id, newAttendance) => {
+  const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
     // Update in Supabase
     const result = await SupabaseService.updateOnboardingStatus(id, newAttendance)
 
@@ -248,52 +250,56 @@ function App() {
     } else {
       console.error('Error updating attendance:', result.error)
     }
-  }
+  }, [autoSync])
 
   // Calendar helper functions
-  const getDaysInMonth = (date) => {
+  const getDaysInMonth = useCallback((date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }
+  }, [])
 
-  const getFirstDayOfMonth = (date) => {
+  const getFirstDayOfMonth = useCallback((date) => {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }
+  }, [])
 
-  const getOnboardingsForDate = (date) => {
+  const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
     return onboardings.filter(ob => ob.date === dateStr)
-  }
+  }, [onboardings])
 
-  const getSelectedDateOnboardings = () => {
+  const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
-  }
+  }, [getOnboardingsForDate, selectedDate])
 
-  const formatDateForDisplay = (date) => {
+  const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
-  }
+  }, [])
 
-  const formatSelectedDate = (date) => {
+  const formatSelectedDate = useCallback((date) => {
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
     })
-  }
+  }, [])
 
-  const navigateMonth = (direction) => {
-    const newDate = new Date(currentDate)
-    newDate.setMonth(currentDate.getMonth() + direction)
-    setCurrentDate(newDate)
-  }
+  const navigateMonth = useCallback((direction) => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(prev.getMonth() + direction)
+      return newDate
+    })
+  }, [])
 
-  const navigateOverviewMonth = (direction) => {
-    const newDate = new Date(overviewDate)
-    newDate.setMonth(overviewDate.getMonth() + direction)
-    setOverviewDate(newDate)
-  }
+  const navigateOverviewMonth = useCallback((direction) => {
+    setOverviewDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(prev.getMonth() + direction)
+      return newDate
+    })
+  }, [])
 
-  const getMonthlyCompletionStats = (date) => {
+  const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
     const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
 
@@ -325,13 +331,17 @@ function App() {
       byEmployee,
       completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
     }
-  }
+  }, [onboardings, employees])
 
-  const getEmployeeColor = (employeeId) => {
+  const monthlyStats = useMemo(() => {
+    return getMonthlyCompletionStats(overviewDate)
+  }, [getMonthlyCompletionStats, overviewDate])
+
+  const getEmployeeColor = useCallback((employeeId) => {
     return employees.find(e => e.id === employeeId)?.color || 'from-gray-500 to-gray-600'
-  }
+  }, [employees])
 
-  const getTotalStats = () => {
+  const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
     const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
     const thisMonthCompleted = onboardings.filter(ob =>
@@ -339,9 +349,9 @@ function App() {
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }
+  }, [onboardings])
 
-  const getAllCompletedStats = (date = new Date()) => {
+  const getAllCompletedStats = useCallback((date = new Date()) => {
     const monthStr = date.toISOString().slice(0, 7)
     return employees.map(emp => {
       const completedCount = onboardings.filter(ob =>
@@ -352,7 +362,7 @@ function App() {
         completed: completedCount
       }
     }).filter(emp => emp.completed > 0) // Only show employees with completions
-  }
+  }, [onboardings, employees])
 
   const [showAllCompleted, setShowAllCompleted] = useState(false)
   const [completedStatsDate, setCompletedStatsDate] = useState(new Date())
@@ -360,13 +370,15 @@ function App() {
   const [employeeHistoryViewMode, setEmployeeHistoryViewMode] = useState('all') // 'all' or 'monthly'
   const [employeeHistoryMonth, setEmployeeHistoryMonth] = useState(new Date())
 
-  const navigateCompletedStatsMonth = (direction) => {
-    const newDate = new Date(completedStatsDate)
-    newDate.setMonth(completedStatsDate.getMonth() + direction)
-    setCompletedStatsDate(newDate)
-  }
+  const navigateCompletedStatsMonth = useCallback((direction) => {
+    setCompletedStatsDate(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(prev.getMonth() + direction)
+      return newDate
+    })
+  }, [])
 
-  const getEmployeeSessions = (employeeId, viewMode = 'all', monthDate = null) => {
+  const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
     let filtered = onboardings.filter(ob => ob.employeeId === employeeId)
 
     // Apply monthly filter if in monthly mode
@@ -386,27 +398,18 @@ function App() {
           day: 'numeric'
         })
       }))
-  }
+  }, [onboardings])
 
-  const navigateEmployeeHistoryMonth = (direction) => {
-    const newDate = new Date(employeeHistoryMonth)
-    newDate.setMonth(employeeHistoryMonth.getMonth() + direction)
-    setEmployeeHistoryMonth(newDate)
-  }
+  const navigateEmployeeHistoryMonth = useCallback((direction) => {
+    setEmployeeHistoryMonth(prev => {
+      const newDate = new Date(prev)
+      newDate.setMonth(prev.getMonth() + direction)
+      return newDate
+    })
+  }, [])
 
-  const syncToGoogleSheets = async () => {
+  const syncToGoogleSheets = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Syncing to Google Sheets (attendance preserved)...', type: '' })
-    
-    // Debug: Log the data being synced
-    console.log('🔄 Syncing onboardings to Google Sheets:')
-    console.log('📊 Total onboardings:', onboardings.length)
-    console.log('📋 Sample onboarding:', onboardings[0])
-    console.log('📍 Attendance values in first 3 onboardings:', 
-      onboardings.slice(0, 3).map(o => ({ 
-        client: o.clientName, 
-        attendance: o.attendance 
-      }))
-    )
     
     try {
       const result = await GoogleSheetsService.syncAllOnboardings(onboardings)
@@ -434,9 +437,9 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
     }
-  }
+  }, [onboardings])
 
-  const testSheetsConnection = async () => {
+  const testSheetsConnection = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
     
     try {
@@ -465,9 +468,9 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
     }
-  }
+  }, [])
 
-  const importFromGoogleSheets = async () => {
+  const importFromGoogleSheets = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
 
     try {
@@ -553,9 +556,11 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
     }
-  }
+  }, [onboardings])
 
-  const stats = getTotalStats()
+  const pendingApprovals = useMemo(() => {
+    return onboardings.filter(ob => ob.attendance === 'pending_approval')
+  }, [onboardings])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
@@ -611,50 +616,11 @@ function App() {
       <NightShiftBanner />
 
       {/* Pending Completion Approvals Alert */}
-      {(() => {
-        const pendingApprovals = onboardings.filter(ob => ob.attendance === 'pending_approval')
-        if (pendingApprovals.length === 0) return null
-        return (
-          <div className="w-full mb-6 backdrop-blur-md bg-amber-500/10 rounded-2xl border border-amber-400/30 p-6 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-3 h-3 bg-amber-400 rounded-full animate-pulse shadow-lg shadow-amber-400/50" />
-              <h3 className="text-lg font-bold text-amber-300">
-                Completion Requests — {pendingApprovals.length} Awaiting Your Approval
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {pendingApprovals.map(ob => (
-                <div key={ob.id} className="flex items-center justify-between gap-4 bg-white/5 rounded-xl border border-amber-400/20 p-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-white">{ob.clientName}</span>
-                      <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">Session #{ob.sessionNumber}</span>
-                      <span className="text-xs text-amber-300/80">by {ob.employeeName}</span>
-                    </div>
-                    <div className="text-sm text-white/50 mt-1">
-                      Account {ob.accountNumber} · {new Date(ob.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => rejectCompletion(ob.id)}
-                      className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-all"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => approveCompletion(ob.id)}
-                      className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-all"
-                    >
-                      Approve ✓
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })()}
+      <PendingApprovalsAlert
+        pendingApprovals={pendingApprovals}
+        onApprove={approveCompletion}
+        onReject={rejectCompletion}
+      />
 
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
@@ -880,166 +846,13 @@ function App() {
 
           {/* Left Side - Monthly Overview & Scheduled Onboardings */}
           <div className="xl:col-span-3">
-            <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl mb-6">
-              {/* Month Navigation */}
-              <div className="flex items-center justify-between mb-6">
-                <button
-                  onClick={() => navigateOverviewMonth(-1)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-
-                <h3 className="text-lg font-bold text-white text-center">
-                  {formatDateForDisplay(overviewDate)}
-                </h3>
-
-                <button
-                  onClick={() => navigateOverviewMonth(1)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-
-              {(() => {
-                const stats = getMonthlyCompletionStats(overviewDate)
-
-                return (
-                  <div className="space-y-4">
-                    {/* Overall Stats */}
-                    <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
-                      <h4 className="text-sm font-semibold text-white/80 mb-3">Overall Progress</h4>
-
-                      {/* Completion Rate Circle */}
-                      <div className="flex items-center justify-center mb-4">
-                        <div className="relative w-32 h-32">
-                          <svg className="transform -rotate-90 w-32 h-32">
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="currentColor"
-                              strokeWidth="8"
-                              fill="none"
-                              className="text-white/10"
-                            />
-                            <circle
-                              cx="64"
-                              cy="64"
-                              r="56"
-                              stroke="currentColor"
-                              strokeWidth="8"
-                              fill="none"
-                              strokeDasharray={`${2 * Math.PI * 56}`}
-                              strokeDashoffset={`${2 * Math.PI * 56 * (1 - stats.completionRate / 100)}`}
-                              className="text-green-400 transition-all duration-1000"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-3xl font-bold text-white">{stats.completionRate}%</span>
-                            <span className="text-xs text-white/60">Complete</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Stats Grid */}
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div className="bg-green-500/20 rounded-lg p-3 border border-green-400/30">
-                          <div className="text-2xl font-bold text-green-300">{stats.completed}</div>
-                          <div className="text-xs text-green-200">Completed</div>
-                        </div>
-                        <div className="bg-blue-500/20 rounded-lg p-3 border border-blue-400/30">
-                          <div className="text-2xl font-bold text-blue-300">{stats.pending}</div>
-                          <div className="text-xs text-blue-200">Pending</div>
-                        </div>
-                      </div>
-
-                      {stats.cancelled > 0 && (
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                          <div className="bg-red-500/20 rounded-lg p-3 border border-red-400/30">
-                            <div className="text-xl font-bold text-red-300">{stats.cancelled}</div>
-                            <div className="text-xs text-red-200">Cancelled</div>
-                          </div>
-                          {stats.noShow > 0 && (
-                            <div className="bg-orange-500/20 rounded-lg p-3 border border-orange-400/30">
-                              <div className="text-xl font-bold text-orange-300">{stats.noShow}</div>
-                              <div className="text-xs text-orange-200">No Show</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {stats.rescheduled > 0 && (
-                        <div className="bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/30 mb-3">
-                          <div className="text-xl font-bold text-yellow-300">{stats.rescheduled}</div>
-                          <div className="text-xs text-yellow-200">Rescheduled</div>
-                        </div>
-                      )}
-
-                      <div className="pt-3 border-t border-white/10">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-white/60">Total Sessions</span>
-                          <span className="text-xl font-bold text-white">{stats.totalSessions}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* By Employee */}
-                    {stats.byEmployee.length > 0 && (
-                      <div className="backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4">
-                        <h4 className="text-sm font-semibold text-white/80 mb-3">By Employee</h4>
-                        <div className="space-y-3">
-                          {stats.byEmployee.map(emp => (
-                            <div
-                              key={emp.id}
-                              onClick={() => setSelectedEmployeeHistory(emp.id)}
-                              className="backdrop-blur-sm bg-white/5 rounded-lg p-3 border border-white/10 cursor-pointer hover:bg-white/10 hover:scale-105 transition-all duration-200"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${emp.color} flex items-center justify-center shadow-lg`}>
-                                  <span className="text-white font-bold text-xs">
-                                    {emp.name.charAt(0)}
-                                  </span>
-                                </div>
-                                <span className="text-sm font-medium text-white">{emp.name}</span>
-                              </div>
-                              <div className="flex justify-between items-center text-xs">
-                                <span className="text-white/60">Completed</span>
-                                <span className="font-bold text-green-300">{emp.completed}/{emp.total}</span>
-                              </div>
-                              {/* Progress bar */}
-                              <div className="mt-2 h-2 bg-white/10 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full bg-gradient-to-r ${emp.color} transition-all duration-500`}
-                                  style={{ width: `${emp.total > 0 ? (emp.completed / emp.total) * 100 : 0}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {stats.totalSessions === 0 && (
-                      <div className="text-center py-8 text-white/60">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                        </div>
-                        <p className="text-sm">No sessions this month</p>
-                      </div>
-                    )}
-                  </div>
-                )
-              })()}
-            </div>
+            <MonthlyStatsOverview
+              overviewDate={overviewDate}
+              onNavigate={navigateOverviewMonth}
+              stats={monthlyStats}
+              formatDateForDisplay={formatDateForDisplay}
+              onEmployeeClick={setSelectedEmployeeHistory}
+            />
 
             {/* Scheduled Onboardings for Selected Date */}
             <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -1048,13 +861,13 @@ function App() {
                   {formatSelectedDate(selectedDate)}
                 </h3>
                 <div className="text-blue-200 text-sm">
-                  {getSelectedDateOnboardings().length} onboardings scheduled
+                  {selectedDateOnboardings.length} onboardings scheduled
                 </div>
               </div>
 
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {getSelectedDateOnboardings().length > 0 ? (
-                  getSelectedDateOnboardings().map(onboarding => (
+                {selectedDateOnboardings.length > 0 ? (
+                  selectedDateOnboardings.map(onboarding => (
                     <div
                       key={onboarding.id}
                       className="group backdrop-blur-sm bg-white/5 rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/10"

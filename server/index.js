@@ -6,6 +6,7 @@ import onboardingsRouter from './routes/onboardings.js';
 import usersRouter from './routes/users.js';
 import shiftsRouter from './routes/shifts.js';
 import tradesRouter from './routes/trades.js';
+import emailRouter from './routes/email.js';
 import pool from './config/database.js';
 
 dotenv.config();
@@ -43,6 +44,7 @@ app.use('/api/employees', employeesRouter);
 app.use('/api/onboardings', onboardingsRouter);
 app.use('/api/shifts', shiftsRouter);
 app.use('/api/trades', tradesRouter);
+app.use('/api/email', emailRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
