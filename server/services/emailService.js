@@ -36,7 +36,14 @@ export const EmailService = {
         await transporter.verify();
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
-        return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
+        // Provide more detailed error message based on common issues
+        let errorMsg = `SMTP Connection failed: ${verifyError.message}`;
+        if (verifyError.code === 'EAUTH') {
+          errorMsg = 'Email authentication failed. Please check your SMTP_USER and SMTP_PASS.';
+        } else if (verifyError.code === 'ESOCKET') {
+          errorMsg = 'Could not connect to SMTP server. Please check SMTP_HOST and SMTP_PORT.';
+        }
+        return { success: false, error: errorMsg };
       }
 
       const info = await transporter.sendMail({

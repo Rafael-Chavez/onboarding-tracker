@@ -27,9 +27,10 @@ const getGradientColor = (colorClass) => {
 // Component to draw connection lines between nightshift weeks
 const ShiftConnectionLines = memo(({ shifts, calendarRef }) => {
   const svgRef = useRef(null);
+  const [lineCoords, setLineCoords] = useState([]);
 
-  useEffect(() => {
-    if (!svgRef.current || !shifts.length || !calendarRef.current) return;
+  const calculateLines = useCallback(() => {
+    if (!shifts.length || !calendarRef.current) return;
 
     // Get calendar tiles to calculate positions
     const calendarElement = calendarRef.current.querySelector('.react-calendar__month-view__days');
@@ -69,7 +70,7 @@ const ShiftConnectionLines = memo(({ shifts, calendarRef }) => {
     });
 
     const calendarRect = calendarElement.getBoundingClientRect();
-    const lines = [];
+    const newLines = [];
 
     Object.entries(shiftsByEmployee).forEach(([, { weeks, employee }]) => {
       const weekStarts = Object.keys(weeks).sort();
@@ -101,44 +102,61 @@ const ShiftConnectionLines = memo(({ shifts, calendarRef }) => {
           const color = employee?.color || 'from-gray-500 to-gray-600';
           const gradientColor = getGradientColor(color);
 
-          lines.push({
+          newLines.push({
             x1, y1, x2, y2, color: gradientColor, employee: employee?.name || 'Unknown'
           });
         }
       }
     });
 
-    // Render lines efficiently
-    if (svgRef.current) {
-      const fragment = document.createDocumentFragment();
-      lines.forEach((line) => {
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const midX = (line.x1 + line.x2) / 2;
-        const midY = (line.y1 + line.y2) / 2;
-        const dx = line.x2 - line.x1;
-        const dy = line.y2 - line.y1;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const controlOffset = Math.min(distance * 0.2, 20);
-        const controlX = midX - (dy / distance) * controlOffset;
-        const controlY = midY + (dx / distance) * controlOffset;
-
-        path.setAttribute('d', `M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`);
-        path.setAttribute('stroke', line.color);
-        path.setAttribute('stroke-width', '2');
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke-dasharray', '5,5');
-        path.setAttribute('opacity', '0.6');
-        path.setAttribute('class', 'shift-connection-line');
-
-        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-        title.textContent = `${line.employee}'s shift continuation`;
-        path.appendChild(title);
-        fragment.appendChild(path);
-      });
-      svgRef.current.innerHTML = '';
-      svgRef.current.appendChild(fragment);
-    }
+    setLineCoords(newLines);
   }, [shifts, calendarRef]);
+
+  useEffect(() => {
+    // Initial calculation
+    const timer = setTimeout(calculateLines, 100);
+
+    // Recalculate on window resize
+    window.addEventListener('resize', calculateLines);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calculateLines);
+    };
+  }, [calculateLines]);
+
+  useEffect(() => {
+    if (!svgRef.current || !lineCoords.length) return;
+
+    const fragment = document.createDocumentFragment();
+    lineCoords.forEach((line) => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const midX = (line.x1 + line.x2) / 2;
+      const midY = (line.y1 + line.y2) / 2;
+      const dx = line.x2 - line.x1;
+      const dy = line.y2 - line.y1;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const controlOffset = Math.min(distance * 0.2, 20);
+      const controlX = midX - (dy / distance) * controlOffset;
+      const controlY = midY + (dx / distance) * controlOffset;
+
+      path.setAttribute('d', `M ${line.x1} ${line.y1} Q ${controlX} ${controlY} ${line.x2} ${line.y2}`);
+      path.setAttribute('stroke', line.color);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-dasharray', '5,5');
+      path.setAttribute('opacity', '0.6');
+      path.setAttribute('class', 'shift-connection-line');
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${line.employee}'s shift continuation`;
+      path.appendChild(title);
+      fragment.appendChild(path);
+    });
+
+    svgRef.current.innerHTML = '';
+    svgRef.current.appendChild(fragment);
+  }, [lineCoords]);
 
   return (
     <svg

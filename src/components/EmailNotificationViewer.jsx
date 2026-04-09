@@ -32,6 +32,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Sending test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -41,7 +43,12 @@ export default function EmailNotificationViewer() {
     });
 
     setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+
+    // Auto-hide success messages, but keep error messages longer for visibility
+    if (result.success) {
+      setTimeout(() => setTestEmailStatus(null), 5000);
+    }
+
     loadNotifications();
   }, [loadNotifications]);
 
@@ -66,8 +73,26 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`
+            ${testEmailStatus.isLoading ? 'bg-blue-500' : testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'}
+            text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm flex items-center gap-2
+          `}>
+            {testEmailStatus.isLoading && (
+              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            {!testEmailStatus.isLoading && (testEmailStatus.success ? '✓ ' : '✗ ')}
+            {testEmailStatus.message}
+            {!testEmailStatus.isLoading && !testEmailStatus.success && (
+              <button
+                onClick={() => setTestEmailStatus(null)}
+                className="ml-2 hover:text-white/80"
+              >
+                ✕
+              </button>
+            )}
           </div>
         )}
 
