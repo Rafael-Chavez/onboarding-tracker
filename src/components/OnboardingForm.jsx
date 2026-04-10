@@ -1,16 +1,28 @@
-import { memo } from 'react';
+import { useState, useCallback, memo } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
-  addOnboarding
+  onAddOnboarding
 }) => {
+  const [employeeId, setEmployeeId] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+
+  const handleSubmit = useCallback(async () => {
+    if (employeeId && clientName.trim() && accountNumber.trim()) {
+      await onAddOnboarding({
+        employeeId,
+        clientName: clientName.trim(),
+        accountNumber: accountNumber.trim()
+      });
+
+      // Clear form after submission
+      setClientName('');
+      setAccountNumber('');
+    }
+  }, [employeeId, clientName, accountNumber, onAddOnboarding]);
+
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
       <h3 className="text-xl font-bold text-white mb-2">
@@ -29,8 +41,8 @@ const OnboardingForm = ({
         <div>
           <label className="text-white text-sm font-medium mb-2 block">Employee</label>
           <select
-            value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
           >
             <option value="" className="text-gray-800">Select Employee</option>
@@ -59,15 +71,15 @@ const OnboardingForm = ({
             type="text"
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             placeholder="Enter account number..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
           />
         </div>
 
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleSubmit}
+          disabled={!employeeId || !clientName.trim() || !accountNumber.trim()}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
         >
           Add Onboarding
