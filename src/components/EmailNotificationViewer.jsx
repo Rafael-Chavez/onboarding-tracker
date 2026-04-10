@@ -31,7 +31,12 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const [isSending, setIsSending] = useState(false);
+
   const sendTestEmail = useCallback(async () => {
+    setIsSending(true);
+    setTestEmailStatus(null);
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -41,7 +46,11 @@ export default function EmailNotificationViewer() {
     });
 
     setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setIsSending(false);
+
+    if (result.success) {
+      setTimeout(() => setTestEmailStatus(null), 5000);
+    }
     loadNotifications();
   }, [loadNotifications]);
 
@@ -73,9 +82,10 @@ export default function EmailNotificationViewer() {
 
         <button
           onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          disabled={isSending}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          {isSending ? '⌛ Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
@@ -98,7 +108,7 @@ export default function EmailNotificationViewer() {
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
               <p className="text-white/60 text-xs">
-                Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
+                Emails sent to {EmailNotificationService.ADMIN_EMAIL}
               </p>
             </div>
             {notifications.length > 0 && (
