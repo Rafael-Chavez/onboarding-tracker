@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { EmailNotificationService } from '../services/emailNotifications';
+import { EmailNotificationService, ADMIN_EMAIL } from '../services/emailNotifications';
 
 export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,17 +33,22 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
-    const result = await EmailNotificationService.notifyShiftTrade({
-      initiatorName: 'Marc',
-      respondentName: 'Jim',
-      initiatorShiftDate: '2026-04-13',
-      respondentShiftDate: '2026-04-20',
-      status: 'accepted'
-    });
+    setIsSendingTest(true);
+    try {
+      const result = await EmailNotificationService.notifyShiftTrade({
+        initiatorName: 'Marc',
+        respondentName: 'Jim',
+        initiatorShiftDate: '2026-04-13',
+        respondentShiftDate: '2026-04-20',
+        status: 'accepted'
+      });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
-    loadNotifications();
+      setTestEmailStatus({ success: result.success, message: result.message });
+      setTimeout(() => setTestEmailStatus(null), 5000);
+      loadNotifications();
+    } finally {
+      setIsSendingTest(false);
+    }
   }, [loadNotifications]);
 
   const clearAllNotifications = useCallback(() => {
@@ -73,9 +79,10 @@ export default function EmailNotificationViewer() {
 
         <button
           onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          disabled={isSendingTest}
+          className={`bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 ${isSendingTest ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          📧 Send Test Email
+          {isSendingTest ? '⌛ Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
@@ -98,7 +105,7 @@ export default function EmailNotificationViewer() {
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
               <p className="text-white/60 text-xs">
-                Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
+                Emails sent to {ADMIN_EMAIL}
               </p>
             </div>
             {notifications.length > 0 && (
