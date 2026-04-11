@@ -23,10 +23,14 @@ export const EmailService = {
    */
   async sendEmail({ to, subject, text, html }) {
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
+      const missing = [];
+      if (!process.env.SMTP_USER) missing.push('SMTP_USER');
+      if (!process.env.SMTP_PASS) missing.push('SMTP_PASS');
+
+      console.error(`Email Error: Missing configuration: ${missing.join(', ')}`);
       return {
         success: false,
-        error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
+        error: `Email service is not configured on the server. Missing: ${missing.join(', ')}`
       };
     }
 
