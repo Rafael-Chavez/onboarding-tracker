@@ -47,10 +47,17 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
+      console.log('Email sent successfully to: %s', to);
+      console.log('Message ID: %s', info.messageId);
+      console.log('SMTP Config used: host=%s, port=%s, user=%s',
+        process.env.SMTP_HOST || 'smtp.gmail.com',
+        process.env.SMTP_PORT || '587',
+        process.env.SMTP_USER
+      );
+
       return { success: true, messageId: info.messageId };
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error('Error sending email to %s:', to, error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
     }
   }
