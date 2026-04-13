@@ -1,10 +1,30 @@
 // Email notification service for shift trades
 import { auth } from '../config/firebase';
 
-const ADMIN_EMAIL = 'rchavez@deconetwork.com';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
+  ADMIN_EMAIL,
+  /**
+   * Send a custom email (Manual Email)
+   */
+  async sendCustomEmail({ to, subject, body }) {
+    const result = await this._sendEmailViaBackend({ to, subject, body });
+
+    this.storeNotification({
+      type: 'manual_email',
+      subject,
+      body,
+      to,
+      timestamp: new Date().toISOString(),
+      backendSent: result.success,
+      error: result.success ? null : result.error
+    });
+
+    return result;
+  },
+
   /**
    * Internal method to send email via backend API
    */

@@ -5,6 +5,9 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualEmail, setManualEmail] = useState({ to: '', subject: '', body: '' });
+  const [isSending, setIsSending] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -79,6 +82,13 @@ export default function EmailNotificationViewer() {
         </button>
 
         <button
+          onClick={() => setShowManualForm(!showManualForm)}
+          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          📝 New Email
+        </button>
+
+        <button
           onClick={() => setShowViewer(!showViewer)}
           className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
@@ -90,6 +100,73 @@ export default function EmailNotificationViewer() {
           {showViewer ? 'Hide' : 'View'} Email Log
         </button>
       </div>
+
+      {/* Manual Email Form */}
+      {showManualForm && (
+        <div className="absolute bottom-16 right-0 w-[400px] bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-white/10 p-6 animate-fade-in">
+          <h3 className="text-white font-bold text-lg mb-4">Send New Email</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="text-white/60 text-xs block mb-1">Recipient</label>
+              <input
+                type="email"
+                value={manualEmail.to}
+                onChange={(e) => setManualEmail({ ...manualEmail, to: e.target.value })}
+                placeholder="email@example.com"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-white/60 text-xs block mb-1">Subject</label>
+              <input
+                type="text"
+                value={manualEmail.subject}
+                onChange={(e) => setManualEmail({ ...manualEmail, subject: e.target.value })}
+                placeholder="Enter subject..."
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="text-white/60 text-xs block mb-1">Message Body</label>
+              <textarea
+                value={manualEmail.body}
+                onChange={(e) => setManualEmail({ ...manualEmail, body: e.target.value })}
+                placeholder="Write your message..."
+                rows={4}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                disabled={isSending}
+                onClick={async () => {
+                  setIsSending(true);
+                  const result = await EmailNotificationService.sendCustomEmail(manualEmail);
+                  setIsSending(false);
+                  if (result.success) {
+                    setTestEmailStatus({ success: true, message: 'Email sent successfully!' });
+                    setShowManualForm(false);
+                    setManualEmail({ to: '', subject: '', body: '' });
+                  } else {
+                    setTestEmailStatus({ success: false, message: result.error || 'Failed to send' });
+                  }
+                  loadNotifications();
+                  setTimeout(() => setTestEmailStatus(null), 5000);
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {isSending ? 'Sending...' : 'Send Email'}
+              </button>
+              <button
+                onClick={() => setShowManualForm(false)}
+                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification Viewer Panel */}
       {showViewer && (
