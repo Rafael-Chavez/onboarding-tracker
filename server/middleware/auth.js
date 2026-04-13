@@ -15,6 +15,7 @@ if (!admin.apps.length) {
       });
       console.log('Firebase Admin SDK initialized successfully');
     } else {
+      console.error('CRITICAL ERROR: FIREBASE_SERVICE_ACCOUNT_PATH is not defined in .env');
       // For development, you can initialize without credentials
       // but token verification will not work
       console.warn('Firebase Admin SDK not initialized - No service account provided');

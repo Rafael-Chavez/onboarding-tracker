@@ -1,16 +1,27 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
   selectedEmployee,
   setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [localClientName, setLocalClientName] = useState('');
+  const [localAccountNumber, setLocalAccountNumber] = useState('');
+  const [notifyEmployee, setNotifyEmployee] = useState(false);
+
+  const handleAdd = async () => {
+    if (!selectedEmployee || !localClientName.trim() || !localAccountNumber.trim()) return;
+
+    const success = await addOnboarding(localClientName, localAccountNumber, notifyEmployee);
+    if (success) {
+      setLocalClientName('');
+      setLocalAccountNumber('');
+      setNotifyEmployee(false);
+    }
+  };
+
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
       <h3 className="text-xl font-bold text-white mb-2">
@@ -46,8 +57,8 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Client Name</label>
           <input
             type="text"
-            value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
+            value={localClientName}
+            onChange={(e) => setLocalClientName(e.target.value)}
             placeholder="Enter client name..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
           />
@@ -57,17 +68,30 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Account Number</label>
           <input
             type="text"
-            value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
+            value={localAccountNumber}
+            onChange={(e) => setLocalAccountNumber(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
             placeholder="Enter account number..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
           />
         </div>
 
+        <div className="flex items-center gap-2 py-2">
+          <input
+            type="checkbox"
+            id="notifyEmployee"
+            checked={notifyEmployee}
+            onChange={(e) => setNotifyEmployee(e.target.checked)}
+            className="w-4 h-4 rounded border-white/20 bg-white/10 text-blue-500 focus:ring-blue-400/50"
+          />
+          <label htmlFor="notifyEmployee" className="text-white text-sm cursor-pointer select-none">
+            Notify via Email
+          </label>
+        </div>
+
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleAdd}
+          disabled={!selectedEmployee || !localClientName.trim() || !localAccountNumber.trim()}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
         >
           Add Onboarding

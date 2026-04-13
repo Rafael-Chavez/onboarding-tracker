@@ -23,7 +23,12 @@ export const EmailService = {
    */
   async sendEmail({ to, subject, text, html }) {
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
+      console.error('Email Error: SMTP credentials not configured in environment variables.', {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        user: process.env.SMTP_USER ? 'SET' : 'MISSING',
+        pass: process.env.SMTP_PASS ? 'SET' : 'MISSING'
+      });
       return {
         success: false,
         error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
@@ -35,7 +40,11 @@ export const EmailService = {
       try {
         await transporter.verify();
       } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
+        console.error('SMTP Connection verification failed:', {
+          message: verifyError.message,
+          code: verifyError.code,
+          command: verifyError.command
+        });
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
@@ -50,7 +59,11 @@ export const EmailService = {
       console.log('Message sent: %s', info.messageId);
       return { success: true, messageId: info.messageId };
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error('Error sending email:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
       return { success: false, error: `Nodemailer error: ${error.message}` };
     }
   }
