@@ -1,16 +1,18 @@
-import { useState, useCallback, useTransition } from 'react';
+import { useState, useCallback, useTransition, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { SupabaseService } from '../services/supabase';
 import OriginalApp from '../OriginalApp';
-import AdminShiftAssignment from './AdminShiftAssignment';
-import ShiftCalendar from './ShiftCalendar';
+import NightShiftCalendarView from './NightShiftCalendarView';
 import EmailNotificationViewer from './EmailNotificationViewer';
+import PendingApprovalsAlert from './PendingApprovalsAlert';
+import SalesDashboard from './SalesDashboard';
 import Sidebar from './Sidebar';
 
 export default function AdminDashboard() {
-  const { currentUser } = useAuth();
+  const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
-  const [refreshKey, setRefreshKey] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [onboardings, setOnboardings] = useState([]);
 
   const handleViewChange = useCallback((newView) => {
     startTransition(() => {
@@ -18,48 +20,60 @@ export default function AdminDashboard() {
     });
   }, []);
 
-  const handleShiftCreated = useCallback(() => {
-    // Trigger a refresh of the calendar
-    setRefreshKey(prev => prev + 1);
+  // Load onboardings for pending approvals
+  const fetchOnboardings = useCallback(async () => {
+    const result = await SupabaseService.getAllOnboardings();
+    if (result.success) {
+      setOnboardings(result.onboardings);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOnboardings();
+
+    // Subscribe to real-time changes
+    const subscription = SupabaseService.subscribeToOnboardings(() => {
+      fetchOnboardings();
+    });
+
+    return () => {
+      SupabaseService.unsubscribe(subscription);
+    };
+  }, [fetchOnboardings]);
+
+  const pendingApprovals = useMemo(() => {
+    return onboardings.filter(ob => ob.attendance === 'pending_approval');
+  }, [onboardings]);
+
+  const approveCompletion = useCallback(async (id) => {
+    const result = await SupabaseService.approveCompletion(id);
+    if (result.success) {
+      // Real-time subscription will update the UI
+    }
+  }, []);
+
+  const rejectCompletion = useCallback(async (id) => {
+    const result = await SupabaseService.rejectCompletion(id);
+    if (result.success) {
+      // Real-time subscription will update the UI
+    }
   }, []);
 
   const renderContent = () => {
     switch (currentView) {
-      case 'nightshift':
+      case 'sales':
         return (
           <div className="p-4 md:p-8">
-            <div className="max-w-7xl mx-auto mb-6">
-              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-white">Night Shift Manager</h2>
-                <p className="text-white/60 text-sm mt-1">Assign and manage night shift schedules</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left side - Staff Assignment */}
-                <div className="lg:col-span-1">
-                  <div className="bg-white/5 rounded-xl p-6 border border-white/10 backdrop-blur-md">
-                    <h3 className="text-white font-semibold text-lg mb-4">Assign Shift</h3>
-                    <AdminShiftAssignment onShiftCreated={handleShiftCreated} />
-                  </div>
-                </div>
-
-                {/* Right side - Calendar View */}
-                <div className="lg:col-span-2">
-                  <div className="bg-white/5 rounded-xl p-6 border border-white/10 backdrop-blur-md">
-                    <h3 className="text-white font-semibold text-lg mb-4">Shift Calendar</h3>
-                    <ShiftCalendar
-                      key={refreshKey}
-                      employeeId={null}
-                      onShiftSelect={(shift, date) => {
-                        // Calendar is read-only for admins in this view
-                        console.log('Shift selected:', shift, date);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SalesDashboard />
           </div>
+        );
+
+      case 'nightshift':
+        return (
+          <NightShiftCalendarView
+            employeeId={employeeId}
+            employeeName={currentUser?.displayName || currentUser?.email || 'Admin'}
+          />
         );
 
       case 'notifications':
@@ -79,7 +93,14 @@ export default function AdminDashboard() {
       default:
         return (
           <div className="admin-app-wrapper">
-             <OriginalApp />
+            <div className="p-4 md:p-8">
+              <PendingApprovalsAlert
+                pendingApprovals={pendingApprovals}
+                onApprove={approveCompletion}
+                onReject={rejectCompletion}
+              />
+            </div>
+            <OriginalApp />
           </div>
         );
     }

@@ -1,12 +1,90 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getNightShiftInfo } from '../utils/nightShiftUtils';
+import { supabase } from '../config/supabase';
 
 export default function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
   const { logout } = useAuth();
-  const { current, upcoming } = getNightShiftInfo();
+  const [nightShiftData, setNightShiftData] = useState({ current: null, upcoming: [], weekLabel: '' });
+
+  useEffect(() => {
+    loadNightShiftData();
+  }, []);
+
+  const loadNightShiftData = async () => {
+    try {
+      const today = new Date();
+      const fourWeeksLater = new Date(today);
+      fourWeeksLater.setDate(fourWeeksLater.getDate() + 28);
+
+      // Get shifts from today onwards
+      const { data: shifts, error } = await supabase
+        .from('night_shifts')
+        .select('*, employee:employee_id(id, name)')
+        .gte('shift_date', today.toISOString().split('T')[0])
+        .lte('shift_date', fourWeeksLater.toISOString().split('T')[0])
+        .order('shift_date', { ascending: true });
+
+      if (error) throw error;
+
+      if (shifts && shifts.length > 0) {
+        // Get current week's shift
+        const currentWeekShift = shifts.find(s => {
+          const shiftDate = new Date(s.shift_date);
+          const dayOfWeek = shiftDate.getDay();
+          return dayOfWeek >= today.getDay() && shiftDate >= today;
+        }) || shifts[0];
+
+        // Get upcoming unique employees
+        const upcomingEmployees = [];
+        const seenEmployees = new Set([currentWeekShift.employee_id]);
+
+        for (const shift of shifts) {
+          if (!seenEmployees.has(shift.employee_id) && upcomingEmployees.length < 3) {
+            seenEmployees.add(shift.employee_id);
+            upcomingEmployees.push({
+              name: shift.employee?.name || 'Unknown',
+              color: getEmployeeColor(shift.employee_id)
+            });
+          }
+        }
+
+        // Format week label
+        const weekStart = new Date(currentWeekShift.week_start_date);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 4);
+        const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const weekLabel = `${fmt(weekStart)} – ${fmt(weekEnd)}`;
+
+        setNightShiftData({
+          current: {
+            name: currentWeekShift.employee?.name || 'Unknown',
+            color: getEmployeeColor(currentWeekShift.employee_id)
+          },
+          upcoming: upcomingEmployees,
+          weekLabel
+        });
+      }
+    } catch (error) {
+      console.error('Error loading night shift data:', error);
+    }
+  };
+
+  const getEmployeeColor = (employeeId) => {
+    const colorMap = {
+      1: 'from-cyan-500 to-blue-500',
+      3: 'from-green-500 to-teal-500',
+      4: 'from-orange-500 to-red-500',
+      5: 'from-indigo-500 to-purple-500',
+      6: 'from-rose-500 to-pink-500'
+    };
+    return colorMap[employeeId] || 'from-purple-500 to-pink-500';
+  };
+
+  const { current, upcoming } = nightShiftData;
 
   const menuItems = isAdmin ? [
     { id: 'dashboard', icon: '📊', label: 'Admin Dashboard' },
+    { id: 'sales', icon: '💰', label: 'Sales Channel' },
     { id: 'nightshift', icon: '🌙', label: 'Night Shift Manager' },
     { id: 'notifications', icon: '📧', label: 'Notifications' },
   ] : [
@@ -255,31 +333,33 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
         ))}
 
         {/* Night Shift Sidebar Widget */}
-        <div className="night-shift-widget">
-          <div className="widget-title">
-            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
-            Night Shift
-          </div>
-
-          <div className="current-person">
-            <div className={`mini-avatar bg-gradient-to-br ${current.color} ring-1 ring-white/20`}>
-              {current.name[0]}
+        {current && (
+          <div className="night-shift-widget">
+            <div className="widget-title">
+              <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+              Night Shift
             </div>
-            <div>
-              <div className="person-name">{current.name}</div>
-              <div className="person-label">Current Duty</div>
-            </div>
-          </div>
 
-          <div className="upcoming-list">
-            {upcoming.slice(0, 3).map((person) => (
-              <div key={person.name} className="upcoming-item">
-                <div className={`upcoming-dot bg-gradient-to-br ${person.color}`} />
-                <span className="upcoming-name">{person.name}</span>
+            <div className="current-person">
+              <div className={`mini-avatar bg-gradient-to-br ${current.color} ring-1 ring-white/20`}>
+                {current.name[0]}
               </div>
-            ))}
+              <div>
+                <div className="person-name">{current.name}</div>
+                <div className="person-label">Current Duty</div>
+              </div>
+            </div>
+
+            <div className="upcoming-list">
+              {upcoming.slice(0, 3).map((person, idx) => (
+                <div key={`${person.name}-${idx}`} className="upcoming-item">
+                  <div className={`upcoming-dot bg-gradient-to-br ${person.color}`} />
+                  <span className="upcoming-name">{person.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="sidebar-footer">

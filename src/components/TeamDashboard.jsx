@@ -5,14 +5,11 @@ import { SupabaseService } from '../services/supabase';
 import Sidebar from './Sidebar';
 import NightShiftCalendarView from './NightShiftCalendarView';
 import NightShiftBanner from './NightShiftBanner';
-import ShiftCalendar from './ShiftCalendar';
 import ShiftTradeModal from './ShiftTradeModal';
-import PendingTrades from './PendingTrades';
-import TeamShiftSelector from './TeamShiftSelector';
 import EmailNotificationViewer from './EmailNotificationViewer';
 
 export default function TeamDashboard() {
-  const { currentUser, employeeId, logout } = useAuth();
+  const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('overview');
   const [clientName, setClientName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -32,18 +29,10 @@ export default function TeamDashboard() {
 
   // Shift trading state
   const [showTradeModal, setShowTradeModal] = useState(false);
-  const [selectedShiftForTrade, setSelectedShiftForTrade] = useState(null);
-  const [showShiftCalendar, setShowShiftCalendar] = useState(false);
   const [targetEmployee, setTargetEmployee] = useState(null);
   const [targetShifts, setTargetShifts] = useState(null);
 
   const currentEmployee = employees.find(emp => emp.id === employeeId);
-
-  const handleTradeRequest = useCallback((employee, shifts) => {
-    setTargetEmployee(employee);
-    setTargetShifts(shifts);
-    setShowTradeModal(true);
-  }, []);
 
   // Fetch user's onboardings from Supabase - useCallback to prevent recreating function
   const fetchMyOnboardings = useCallback(async () => {
@@ -448,60 +437,6 @@ export default function TeamDashboard() {
 
       {/* Night Shift Banner */}
       {currentView === 'overview' && <NightShiftBanner />}
-
-      {/* Shift Trading Section */}
-      {currentView === 'overview' && (
-        <section className="space-y-4 mb-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">Night Shift Management</h2>
-            <button
-              onClick={() => setShowShiftCalendar(!showShiftCalendar)}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-6 py-2 rounded-lg text-white font-medium transition-colors shadow-lg"
-            >
-              {showShiftCalendar ? 'Hide' : 'Open Night Shift Manager'}
-            </button>
-          </div>
-
-          {showShiftCalendar && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Team Shift Selector */}
-              <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                  <TeamShiftSelector
-                    myEmployeeId={employeeId}
-                    myEmployeeName={currentEmployee?.name}
-                    onTradeRequest={handleTradeRequest}
-                  />
-                </div>
-
-                {/* Calendar View */}
-                <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                  <h3 className="text-white font-semibold text-lg mb-4">Shift Calendar</h3>
-                  <ShiftCalendar
-                    employeeId={employeeId}
-                    onShiftSelect={(shift, date) => {
-                      // Calendar is now read-only for viewing
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Pending Trades */}
-              <div>
-                <PendingTrades
-                  employeeId={employeeId}
-                  employeeName={currentEmployee?.name}
-                  onTradeUpdate={() => {
-                    // Refresh calendar when trade is updated
-                    setShowShiftCalendar(false);
-                    setTimeout(() => setShowShiftCalendar(true), 100);
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </section>
-      )}
 
       {/* Main two-column layout */}
       {(currentView === 'overview' || currentView === 'sessions') && (

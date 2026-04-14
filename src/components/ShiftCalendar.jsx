@@ -164,10 +164,6 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
   const [showConnectionLines, setShowConnectionLines] = useState(true);
   const calendarRef = useRef(null);
 
-  useEffect(() => {
-    loadShifts();
-  }, [employeeId, currentMonth, loadShifts]);
-
   const loadShifts = useCallback(async () => {
     try {
       setLoading(true);
@@ -193,6 +189,10 @@ export default function ShiftCalendar({ employeeId, onShiftSelect }) {
       setLoading(false);
     }
   }, [currentMonth]);
+
+  useEffect(() => {
+    loadShifts();
+  }, [employeeId, currentMonth, loadShifts]);
 
   const shiftsMap = useMemo(() => {
     const map = new Map();
