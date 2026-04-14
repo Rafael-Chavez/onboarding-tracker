@@ -6,19 +6,8 @@
 -- 3. Copy the Firebase UID
 -- 4. Replace 'FIREBASE_UID_HERE' below with the actual UID
 
--- Step 1: Add to employees table (optional - only if you want him to have an employee profile)
--- This gives him an employee_id for viewing purposes
-INSERT INTO employees (name, email, role, color)
-VALUES (
-  'Mietek',
-  'mwoloszyn@deconetwork.com',
-  'admin',
-  'from-blue-500 to-cyan-500'
-)
-ON CONFLICT (email) DO NOTHING;
-
--- Step 2: Add to users table with admin role
--- Replace 'FIREBASE_UID_HERE' with Mietek's actual Firebase UID
+-- Add Mietek to users table with admin role (no employee_id needed)
+-- Since he's only viewing, not doing onboarding sessions, he doesn't need an employee profile
 INSERT INTO users (
   firebase_uid,
   email,
@@ -26,14 +15,13 @@ INSERT INTO users (
   name,
   employee_id
 )
-SELECT
+VALUES (
   'FIREBASE_UID_HERE',  -- ⚠️ REPLACE THIS WITH ACTUAL FIREBASE UID
   'mwoloszyn@deconetwork.com',
   'admin',
   'Mietek',
-  e.id
-FROM employees e
-WHERE e.email = 'mwoloszyn@deconetwork.com'
+  NULL  -- No employee_id since he's not doing onboarding sessions
+)
 ON CONFLICT (firebase_uid)
 DO UPDATE SET
   role = 'admin',

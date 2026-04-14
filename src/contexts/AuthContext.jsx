@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
   // User role mapping (stored in localStorage)
   const USER_ROLES_KEY = 'userRoles';
   const USER_ROLES_VERSION_KEY = 'userRolesVersion';
-  const CURRENT_VERSION = '3'; // Increment this when roles change
+  const CURRENT_VERSION = '4'; // Increment this when roles change
 
   // Get user roles from localStorage
   const getUserRoles = () => {
@@ -59,7 +59,8 @@ export const AuthProvider = ({ children }) => {
     'mcruz@deconetwork.com': { role: 'team', employeeId: 4 },
     'danreb@deconetwork.com': { role: 'team', employeeId: 2 },
     'sclar@deconetwork.com': { role: 'team', employeeId: 5 },
-    'eortiz@deconetwork.com': { role: 'team', employeeId: 6 }
+    'eortiz@deconetwork.com': { role: 'team', employeeId: 6 },
+    'mwoloszyn@deconetwork.com': { role: 'admin', employeeId: null }
   });
 
   // Fetch user data from localStorage
