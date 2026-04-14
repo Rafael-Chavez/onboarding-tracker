@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { EmailNotificationService } from '../services/emailNotifications';
+import { EmailNotificationService, ADMIN_EMAIL } from '../services/emailNotifications';
 
 export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
@@ -98,7 +98,7 @@ export default function EmailNotificationViewer() {
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
               <p className="text-white/60 text-xs">
-                Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
+                Emails sent to <span className="text-cyan-400 font-mono">{ADMIN_EMAIL}</span>
               </p>
             </div>
             {notifications.length > 0 && (
