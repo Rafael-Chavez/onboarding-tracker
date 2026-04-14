@@ -262,6 +262,7 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
           background: rgba(139, 92, 246, 0.1);
           border-radius: 12px;
           margin-bottom: 12px;
+          overflow: hidden;
         }
 
         .user-avatar {
@@ -275,10 +276,13 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
           font-size: 16px;
           font-weight: 700;
           color: white;
+          flex-shrink: 0;
         }
 
         .user-info {
           flex: 1;
+          min-width: 0;
+          overflow: hidden;
         }
 
         .user-name {
@@ -289,11 +293,14 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          line-height: 1.3;
         }
 
         .user-role {
           font-size: 11px;
           color: rgba(168, 85, 247, 0.8);
+          text-transform: capitalize;
+          line-height: 1.3;
         }
 
         .logout-btn {
@@ -365,10 +372,16 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
       <div className="sidebar-footer">
         <div className="user-profile">
           <div className="user-avatar">
-            {(employeeName || 'U')[0]}
+            {(employeeName || 'U')[0].toUpperCase()}
           </div>
           <div className="user-info">
-            <div className="user-name">{employeeName || 'User'}</div>
+            <div className="user-name">
+              {employeeName
+                ? (employeeName.includes('@')
+                    ? employeeName.split('@')[0].split('.').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' ')
+                    : employeeName)
+                : 'User'}
+            </div>
             <div className="user-role">{isAdmin ? 'Administrator' : 'Team Member'}</div>
           </div>
         </div>
