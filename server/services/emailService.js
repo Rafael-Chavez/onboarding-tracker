@@ -22,6 +22,14 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
+    console.log('EmailService: Attempting to send email to:', to);
+    console.log('EmailService: SMTP Config status:', {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || '587',
+      hasUser: !!process.env.SMTP_USER,
+      hasPass: !!process.env.SMTP_PASS
+    });
+
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
       console.error('Email Error: SMTP credentials not configured in environment variables.');
       return {
@@ -33,10 +41,16 @@ export const EmailService = {
     try {
       // Verify connection before sending
       try {
+        console.log('EmailService: Verifying SMTP connection...');
         await transporter.verify();
+        console.log('EmailService: SMTP Connection verified.');
       } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
-        return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
+        console.error('EmailService: SMTP Connection verification failed:', verifyError);
+        return {
+          success: false,
+          error: `SMTP Connection failed: ${verifyError.message}`,
+          details: verifyError
+        };
       }
 
       const info = await transporter.sendMail({
@@ -47,11 +61,15 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
+      console.log('EmailService: Message sent successfully! ID:', info.messageId);
       return { success: true, messageId: info.messageId };
     } catch (error) {
-      console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      console.error('EmailService: Detailed error sending email:', error);
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        details: error
+      };
     }
   }
 };
