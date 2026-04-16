@@ -27,11 +27,21 @@ export const EmailNotificationService = {
         body: JSON.stringify({ to, subject, body }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        data = { error: `Server error: ${response.status}` };
       }
-      return data;
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          message: data.message || 'Failed to send email via backend'
+        };
+      }
+      return { success: true, ...data };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
@@ -112,7 +122,7 @@ Generated: ${new Date().toLocaleString()}
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || result.message || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -186,7 +196,7 @@ Generated: ${new Date().toLocaleString()}
       return {
         success: result.success,
         error: result.success ? null : result.error,
-        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Override notification sent' : `Failed: ${result.error || result.message || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

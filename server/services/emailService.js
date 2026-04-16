@@ -36,7 +36,10 @@ export const EmailService = {
         await transporter.verify();
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
-        return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
+        return {
+          success: false,
+          error: `SMTP Connection failed: ${verifyError.message}. Check your SMTP_HOST, SMTP_PORT, and credentials.`
+        };
       }
 
       const info = await transporter.sendMail({
