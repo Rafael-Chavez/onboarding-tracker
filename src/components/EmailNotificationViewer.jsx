@@ -5,6 +5,9 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualEmail, setManualEmail] = useState({ to: '', subject: '', body: '' });
+  const [isSending, setIsSending] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +35,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setIsSending(true);
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +44,42 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
+    setIsSending(false);
     setTestEmailStatus({ success: result.success, message: result.message });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const sendManualEmail = useCallback(async (e) => {
+    e.preventDefault();
+    if (!manualEmail.to || !manualEmail.subject || !manualEmail.body) return;
+
+    setIsSending(true);
+    const result = await EmailNotificationService._sendEmailViaBackend(manualEmail);
+    setIsSending(false);
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Manual email sent!' : `Failed: ${result.error}`
+    });
+
+    if (result.success) {
+      setManualEmail({ to: '', subject: '', body: '' });
+      setShowManualForm(false);
+    }
+
+    // Log it manually since _sendEmailViaBackend doesn't store
+    EmailNotificationService.storeNotification({
+      type: 'manual',
+      ...manualEmail,
+      timestamp: new Date().toISOString(),
+      backendSent: result.success,
+      error: result.success ? null : result.error
+    });
+
+    setTimeout(() => setTestEmailStatus(null), 5000);
+    loadNotifications();
+  }, [manualEmail, loadNotifications]);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -72,10 +108,18 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={() => setShowManualForm(!showManualForm)}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
-          📧 Send Test Email
+          ✉️ Manual Email
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={isSending}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isSending ? 'Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
@@ -91,9 +135,61 @@ export default function EmailNotificationViewer() {
         </button>
       </div>
 
+      {/* Manual Email Form */}
+      {showManualForm && (
+        <div className="absolute bottom-16 right-0 w-96 bg-gradient-to-br from-emerald-900/95 to-teal-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-emerald-500/30 overflow-hidden animate-fade-in">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-white font-bold">Send Manual Email</h3>
+            <button onClick={() => setShowManualForm(false)} className="text-white/60 hover:text-white">✕</button>
+          </div>
+          <form onSubmit={sendManualEmail} className="p-4 space-y-3">
+            <div>
+              <label className="text-white/60 text-xs block mb-1">To</label>
+              <input
+                type="email"
+                required
+                value={manualEmail.to}
+                onChange={e => setManualEmail(prev => ({ ...prev, to: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                placeholder="recipient@example.com"
+              />
+            </div>
+            <div>
+              <label className="text-white/60 text-xs block mb-1">Subject</label>
+              <input
+                type="text"
+                required
+                value={manualEmail.subject}
+                onChange={e => setManualEmail(prev => ({ ...prev, subject: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                placeholder="Email subject"
+              />
+            </div>
+            <div>
+              <label className="text-white/60 text-xs block mb-1">Message Body</label>
+              <textarea
+                required
+                rows="4"
+                value={manualEmail.body}
+                onChange={e => setManualEmail(prev => ({ ...prev, body: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 resize-none"
+                placeholder="Enter your message here..."
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSending}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded transition-colors disabled:opacity-50"
+            >
+              {isSending ? 'Sending...' : 'Send Email Now'}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Notification Viewer Panel */}
       {showViewer && (
-        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden">
+        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden animate-fade-in">
           <div className="p-4 border-b border-white/10 flex items-center justify-between">
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>

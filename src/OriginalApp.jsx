@@ -8,7 +8,9 @@ import MonthlyStatsOverview from './components/MonthlyStatsOverview'
 import DashboardHeader from './components/DashboardHeader'
 import ScheduledOnboardingsList from './components/ScheduledOnboardingsList'
 import OnboardingForm from './components/OnboardingForm'
+import CalendarGrid from './components/CalendarGrid'
 import GoogleSheetsSync from './components/GoogleSheetsSync'
+import { EmailNotificationService } from './services/emailNotifications'
 import EmployeeHistoryModal from './components/EmployeeHistoryModal'
 import AllCompletedStats from './components/AllCompletedStats'
 
@@ -48,9 +50,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -87,70 +86,101 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
-    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
-      // Find existing onboardings for this client to determine session number
-      const clientOnboardings = onboardings.filter(ob =>
-        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
-      )
-      const sessionNumber = clientOnboardings.length + 1
+  // Pre-index onboardings by date for O(1) calendar lookups
+  const onboardingsByDate = useMemo(() => {
+    return onboardings.reduce((acc, ob) => {
+      if (!acc[ob.date]) acc[ob.date] = [];
+      acc[ob.date].push(ob);
+      return acc;
+    }, {});
+  }, [onboardings]);
 
-      const newOnboarding = {
-        employeeId: parseInt(selectedEmployee),
-        employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
-        clientName: clientName.trim(),
-        accountNumber: accountNumber.trim(),
-        sessionNumber,
-        attendance: 'pending',
-        date: selectedDate.toISOString().split('T')[0],
-        month: selectedDate.toISOString().slice(0, 7)
-      }
+  const addOnboarding = useCallback(async ({ employeeId, clientName, accountNumber, notifyEmployee }) => {
+    // Find existing onboardings for this client to determine session number
+    const clientOnboardings = onboardings.filter(ob =>
+      ob.clientName.toLowerCase() === clientName.toLowerCase()
+    )
+    const sessionNumber = clientOnboardings.length + 1
 
-      // Save to Supabase
-      const result = await SupabaseService.createOnboarding(newOnboarding)
-
-      if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
-        // Auto-sync to Google Sheets if enabled
-        if (autoSync) {
-          setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
-
-          try {
-            await GoogleSheetsService.appendOnboarding({
-              ...newOnboarding,
-              id: result.onboarding.id
-            })
-
-            setSyncStatus({
-              isLoading: false,
-              message: 'Successfully synced to Google Sheets!',
-              type: 'success'
-            })
-            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
-          } catch (error) {
-            setSyncStatus({
-              isLoading: false,
-              message: `Auto-sync to Sheets failed: ${error.message}`,
-              type: 'error'
-            })
-            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-          }
-        }
-
-        // Real-time subscription will update the UI automatically
-      } else {
-        setSyncStatus({
-          isLoading: false,
-          message: `Failed to add session: ${result.error}`,
-          type: 'error'
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-      }
+    const newOnboarding = {
+      employeeId: parseInt(employeeId),
+      employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
+      clientName: clientName,
+      accountNumber: accountNumber,
+      sessionNumber,
+      attendance: 'pending',
+      date: selectedDate.toISOString().split('T')[0],
+      month: selectedDate.toISOString().slice(0, 7)
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+
+    // Save to Supabase
+    const result = await SupabaseService.createOnboarding(newOnboarding)
+
+    if (result.success) {
+      // Auto-sync to Google Sheets if enabled
+      if (autoSync) {
+        setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
+
+        try {
+          await GoogleSheetsService.appendOnboarding({
+            ...newOnboarding,
+            id: result.onboarding.id
+          })
+
+          setSyncStatus({
+            isLoading: false,
+            message: 'Successfully synced to Google Sheets!',
+            type: 'success'
+          })
+          setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
+        } catch (error) {
+          setSyncStatus({
+            isLoading: false,
+            message: `Auto-sync to Sheets failed: ${error.message}`,
+            type: 'error'
+          })
+          setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        }
+      }
+
+      // Send email notification to employee if requested
+      if (notifyEmployee) {
+        const employee = employees.find(e => e.id === parseInt(employeeId));
+        if (employee) {
+          EmailNotificationService._sendEmailViaBackend({
+            to: EmailNotificationService.ADMIN_EMAIL, // For now sending to admin as per service design
+            subject: `New Onboarding Assigned: ${clientName}`,
+            body: `
+Hello ${employee.name},
+
+You have been assigned a new onboarding session.
+
+Details:
+- Client: ${clientName}
+- Account: ${accountNumber}
+- Date: ${new Date(newOnboarding.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- Session: #${newOnboarding.sessionNumber}
+
+Please ensure you are prepared for this session.
+
+Best regards,
+Onboarding Tracker System
+            `.trim()
+          });
+        }
+      }
+
+      return true; // Indicate success to the form
+    } else {
+      setSyncStatus({
+        isLoading: false,
+        message: `Failed to add session: ${result.error}`,
+        type: 'error'
+      })
+      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+      return false;
+    }
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,14 +295,10 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
-
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    return onboardingsByDate[dateStr] || [];
+  }, [onboardingsByDate, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -642,53 +668,14 @@ function App() {
                 </button>
               </div>
 
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 sm:gap-3 mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-xs sm:text-sm font-medium text-blue-200 py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-20 sm:h-24"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
-                  return (
-                    <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
-                      className={`
-                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-all duration-200 p-2 sm:p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
-                        border border-white/10
-                      `}
-                    >
-                      <div className={`text-sm sm:text-base font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
-                      </div>
-
-                      {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
-                            {dayOnboardings.length}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <CalendarGrid
+                currentDate={currentDate}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+                onboardingsByDate={onboardingsByDate}
+                getFirstDayOfMonth={getFirstDayOfMonth}
+                getDaysInMonth={getDaysInMonth}
+              />
             </div>
           </div>
 
@@ -696,12 +683,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />
