@@ -1,16 +1,29 @@
-import { memo } from 'react';
+import { memo, useState, useCallback } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [notifyEmployee, setNotifyEmployee] = useState(false);
+
+  const handleAddOnboarding = useCallback(() => {
+    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
+      addOnboarding({
+        selectedEmployee,
+        clientName: clientName.trim(),
+        accountNumber: accountNumber.trim(),
+        notifyEmployee
+      });
+      setClientName('');
+      setAccountNumber('');
+      setNotifyEmployee(false);
+    }
+  }, [selectedEmployee, clientName, accountNumber, notifyEmployee, addOnboarding]);
+
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
       <h3 className="text-xl font-bold text-white mb-2">
@@ -59,14 +72,27 @@ const OnboardingForm = ({
             type="text"
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddOnboarding()}
             placeholder="Enter account number..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
           />
         </div>
 
+        <div className="flex items-center gap-2 py-2">
+          <input
+            type="checkbox"
+            id="notifyEmployee"
+            checked={notifyEmployee}
+            onChange={(e) => setNotifyEmployee(e.target.checked)}
+            className="w-4 h-4 rounded border-white/20 bg-white/10 text-blue-500 focus:ring-blue-400/50"
+          />
+          <label htmlFor="notifyEmployee" className="text-white text-sm cursor-pointer select-none">
+            Notify Employee via Email
+          </label>
+        </div>
+
         <button
-          onClick={addOnboarding}
+          onClick={handleAddOnboarding}
           disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
         >

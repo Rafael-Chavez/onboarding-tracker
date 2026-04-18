@@ -7,7 +7,10 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, color FROM employees ORDER BY id'
+      `SELECT e.id, e.name, e.color, u.email
+       FROM employees e
+       LEFT JOIN users u ON e.id = u.employee_id
+       ORDER BY e.id`
     );
     res.json(result.rows);
   } catch (error) {
