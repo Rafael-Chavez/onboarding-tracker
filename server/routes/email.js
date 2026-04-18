@@ -26,7 +26,12 @@ router.post('/send', verifyToken, async (req, res) => {
     if (result.success) {
       res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
     } else {
-      res.status(500).json({ success: false, error: result.error });
+      console.error('Email sending failed:', result.error);
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        code: result.code || 'EMAIL_SEND_FAILED'
+      });
     }
   } catch (error) {
     console.error('Email route error:', error);

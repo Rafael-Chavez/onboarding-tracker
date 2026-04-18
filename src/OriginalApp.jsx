@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
+import { EmailNotificationService } from './services/emailNotifications'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
 import NightShiftBanner from './components/NightShiftBanner'
 import PendingApprovalsAlert from './components/PendingApprovalsAlert'
@@ -11,6 +12,7 @@ import OnboardingForm from './components/OnboardingForm'
 import GoogleSheetsSync from './components/GoogleSheetsSync'
 import EmployeeHistoryModal from './components/EmployeeHistoryModal'
 import AllCompletedStats from './components/AllCompletedStats'
+import CalendarGrid from './components/CalendarGrid'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -19,13 +21,27 @@ if (typeof window !== 'undefined') {
 }
 
 function App() {
-  const [employees] = useState([
+  const [employees, setEmployees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
     { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ])
+
+  const fetchEmployees = useCallback(async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/employees`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data && data.length > 0) {
+          setEmployees(data)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error)
+    }
+  }, [])
   
   // Load data from localStorage
   const loadFromStorage = useCallback((key, defaultValue) => {
@@ -48,9 +64,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -70,7 +83,10 @@ function App() {
   // Load onboardings from Supabase on mount
   useEffect(() => {
     fetchOnboardings()
+    fetchEmployees()
+  }, [fetchOnboardings, fetchEmployees])
 
+  useEffect(() => {
     // Subscribe to real-time changes
     const subscription = SupabaseService.subscribeToOnboardings((payload) => {
       console.log('Real-time update detected:', payload)
@@ -87,7 +103,8 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber, notifyEmployee } = formData;
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -110,9 +127,38 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
+        // Notify employee if requested
+        if (notifyEmployee) {
+          const employee = employees.find(e => e.id === parseInt(selectedEmployee))
+          if (employee && employee.email) {
+            EmailNotificationService._sendEmailViaBackend({
+              to: employee.email,
+              subject: `New Onboarding Scheduled: ${clientName}`,
+              body: `
+Hello ${employee.name},
+
+A new onboarding session has been scheduled for you.
+
+Details:
+- Client: ${clientName}
+- Account: ${accountNumber}
+- Date: ${new Date(selectedDate).toLocaleDateString()}
+- Session: #${sessionNumber}
+
+Please ensure you are prepared for this session.
+
+---
+Onboarding Tracker System
+              `.trim()
+            }).then(emailResult => {
+              if (!emailResult.success) {
+                console.error('Failed to notify employee:', emailResult.error)
+              }
+            })
+          } else {
+            console.warn('Cannot notify employee: Email address not found.')
+          }
+        }
 
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
@@ -150,7 +196,7 @@ function App() {
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,10 +311,18 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  const onboardingsByDate = useMemo(() => {
+    return onboardings.reduce((acc, ob) => {
+      if (!acc[ob.date]) acc[ob.date] = []
+      acc[ob.date].push(ob)
+      return acc
+    }, {})
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate[dateStr] || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -651,44 +705,14 @@ function App() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-20 sm:h-24"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
-                  return (
-                    <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
-                      className={`
-                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-all duration-200 p-2 sm:p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
-                        border border-white/10
-                      `}
-                    >
-                      <div className={`text-sm sm:text-base font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
-                      </div>
-
-                      {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
-                            {dayOnboardings.length}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <CalendarGrid
+                currentDate={currentDate}
+                selectedDate={selectedDate}
+                onboardingsByDate={onboardingsByDate}
+                setSelectedDate={setSelectedDate}
+                getFirstDayOfMonth={getFirstDayOfMonth}
+                getDaysInMonth={getDaysInMonth}
+              />
             </div>
           </div>
 
@@ -696,12 +720,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />
