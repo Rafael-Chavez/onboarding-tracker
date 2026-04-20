@@ -30,15 +30,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchOnboardings();
-
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings(() => {
-      fetchOnboardings();
-    });
-
-    return () => {
-      SupabaseService.unsubscribe(subscription);
-    };
   }, [fetchOnboardings]);
 
   const pendingApprovals = useMemo(() => {
