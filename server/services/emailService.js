@@ -31,9 +31,13 @@ export const EmailService = {
     }
 
     try {
+      console.log(`Attempting to send email to: ${to}`);
+      console.log(`SMTP Config: host=${process.env.SMTP_HOST || 'smtp.gmail.com'}, port=${process.env.SMTP_PORT || '587'}, user=${process.env.SMTP_USER}`);
+
       // Verify connection before sending
       try {
         await transporter.verify();
+        console.log('SMTP Connection verified successfully');
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
@@ -48,7 +52,13 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Full SMTP response:', info);
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        response: info.response
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
