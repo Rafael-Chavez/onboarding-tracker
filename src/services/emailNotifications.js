@@ -28,9 +28,16 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+
+      // Check both response.ok AND the data.success flag
+      if (!response.ok || data.success === false) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
+
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
