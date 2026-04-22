@@ -48,10 +48,15 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+      console.log('Full SMTP Response:', JSON.stringify(info, null, 2));
       return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        details: error.response || 'No additional SMTP details'
+      };
     }
   }
 };
