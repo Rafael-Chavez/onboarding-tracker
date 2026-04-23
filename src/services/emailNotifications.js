@@ -31,6 +31,12 @@ export const EmailNotificationService = {
       if (!response.ok) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
       }
+
+      // Even if response.ok is true, we must check the data.success flag from our service
+      if (data.success === false) {
+        return { success: false, error: data.error || 'Server reported failure but returned 200 OK' };
+      }
+
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
