@@ -16,6 +16,7 @@ router.post('/send', verifyToken, async (req, res) => {
   }
 
   try {
+    console.log(`[Email Route] Processing send request to ${to}`);
     const result = await EmailService.sendEmail({
       to,
       subject,
@@ -24,8 +25,10 @@ router.post('/send', verifyToken, async (req, res) => {
     });
 
     if (result.success) {
+      console.log(`[Email Route] Email sent successfully to ${to}`);
       res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
     } else {
+      console.error(`[Email Route] Email service failed for ${to}:`, result.error);
       res.status(500).json({ success: false, error: result.error });
     }
   } catch (error) {

@@ -33,12 +33,15 @@ export const EmailService = {
     try {
       // Verify connection before sending
       try {
+        console.log('Verifying SMTP connection...');
         await transporter.verify();
+        console.log('SMTP Connection verified successfully.');
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
+      console.log(`Attempting to send email to: ${to}, subject: ${subject}`);
       const info = await transporter.sendMail({
         from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
         to,
@@ -47,8 +50,10 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Message sent successfully!');
+      console.log('Message ID: %s', info.messageId);
+      console.log('SMTP Response: %s', info.response);
+      return { success: true, messageId: info.messageId, response: info.response };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
