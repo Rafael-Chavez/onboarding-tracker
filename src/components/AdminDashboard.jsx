@@ -12,51 +12,10 @@ export default function AdminDashboard() {
   const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isPending, startTransition] = useTransition();
-  const [onboardings, setOnboardings] = useState([]);
-
   const handleViewChange = useCallback((newView) => {
     startTransition(() => {
       setCurrentView(newView);
     });
-  }, []);
-
-  // Load onboardings for pending approvals
-  const fetchOnboardings = useCallback(async () => {
-    const result = await SupabaseService.getAllOnboardings();
-    if (result.success) {
-      setOnboardings(result.onboardings);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchOnboardings();
-
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings(() => {
-      fetchOnboardings();
-    });
-
-    return () => {
-      SupabaseService.unsubscribe(subscription);
-    };
-  }, [fetchOnboardings]);
-
-  const pendingApprovals = useMemo(() => {
-    return onboardings.filter(ob => ob.attendance === 'pending_approval');
-  }, [onboardings]);
-
-  const approveCompletion = useCallback(async (id) => {
-    const result = await SupabaseService.approveCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
-    }
-  }, []);
-
-  const rejectCompletion = useCallback(async (id) => {
-    const result = await SupabaseService.rejectCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
-    }
   }, []);
 
   const renderContent = () => {
@@ -93,13 +52,6 @@ export default function AdminDashboard() {
       default:
         return (
           <div className="admin-app-wrapper">
-            <div className="p-4 md:p-8">
-              <PendingApprovalsAlert
-                pendingApprovals={pendingApprovals}
-                onApprove={approveCompletion}
-                onReject={rejectCompletion}
-              />
-            </div>
             <OriginalApp />
           </div>
         );

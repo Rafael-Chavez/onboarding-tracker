@@ -48,10 +48,27 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Full SMTP response:', JSON.stringify(info, null, 2));
+
+      // Even if sendMail doesn't throw, we should check if it was accepted
+      if (info.rejected && info.rejected.length > 0) {
+        console.error('Email rejected for recipients:', info.rejected);
+        return {
+          success: false,
+          error: `Email rejected for: ${info.rejected.join(', ')}`,
+          details: info
+        };
+      }
+
+      return { success: true, messageId: info.messageId, details: info };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
   }
 };
