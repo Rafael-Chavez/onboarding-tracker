@@ -1,7 +1,7 @@
 // Email notification service for shift trades
 import { auth } from '../config/firebase';
 
-const ADMIN_EMAIL = 'rchavez@deconetwork.com';
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
@@ -87,13 +87,16 @@ Generated: ${new Date().toLocaleString()}
         body
       });
 
+      // Double check success flag even if status was 200
+      const isActuallySuccessful = result && result.success === true;
+
       // Create a mailto link as fallback/alternative
       const mailtoLink = `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-      console.log('%c📧 EMAIL NOTIFICATION ATTEMPTED', 'background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+      console.log('%c📧 EMAIL NOTIFICATION ATTEMPTED', `background: ${isActuallySuccessful ? '#10b981' : '#ef4444'}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;`);
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
-      console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      console.log('%cBackend Result:', 'font-weight: bold;', isActuallySuccessful ? 'SUCCESS' : 'FAILED: ' + (result?.error || 'Unknown error'));
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
@@ -104,15 +107,15 @@ Generated: ${new Date().toLocaleString()}
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
         tradeDetails,
-        backendSent: result.success,
-        error: result.success ? null : result.error
+        backendSent: isActuallySuccessful,
+        error: isActuallySuccessful ? null : (result?.error || 'Unknown error')
       });
 
       return {
-        success: result.success,
+        success: isActuallySuccessful,
         mailtoLink,
-        error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        error: isActuallySuccessful ? null : (result?.error || 'Unknown error'),
+        message: isActuallySuccessful ? 'Email sent successfully' : `Failed: ${result?.error || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -166,10 +169,12 @@ Generated: ${new Date().toLocaleString()}
         body
       });
 
-      console.log('%c📧 SHIFT OVERRIDE NOTIFICATION', 'background: #f97316; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;');
+      const isActuallySuccessful = result && result.success === true;
+
+      console.log('%c📧 SHIFT OVERRIDE NOTIFICATION', `background: ${isActuallySuccessful ? '#f97316' : '#ef4444'}; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold;`);
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
-      console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      console.log('%cBackend Result:', 'font-weight: bold;', isActuallySuccessful ? 'SUCCESS' : 'FAILED: ' + (result?.error || 'Unknown error'));
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
@@ -179,14 +184,14 @@ Generated: ${new Date().toLocaleString()}
         to: ADMIN_EMAIL,
         timestamp: new Date().toISOString(),
         overrideDetails,
-        backendSent: result.success,
-        error: result.success ? null : result.error
+        backendSent: isActuallySuccessful,
+        error: isActuallySuccessful ? null : (result?.error || 'Unknown error')
       });
 
       return {
-        success: result.success,
-        error: result.success ? null : result.error,
-        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
+        success: isActuallySuccessful,
+        error: isActuallySuccessful ? null : (result?.error || 'Unknown error'),
+        message: isActuallySuccessful ? 'Override notification sent' : `Failed: ${result?.error || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending override notification:', error);
