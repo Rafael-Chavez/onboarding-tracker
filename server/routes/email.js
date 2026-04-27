@@ -11,7 +11,10 @@ const router = express.Router();
 router.post('/send', verifyToken, async (req, res) => {
   const { to, subject, body, html } = req.body;
 
+  console.log(`Email Route: Received send request for ${to}`);
+
   if (!to || !subject || !body) {
+    console.warn('Email Route: Missing required fields');
     return res.status(400).json({ error: 'Missing required fields: to, subject, body' });
   }
 
@@ -24,12 +27,19 @@ router.post('/send', verifyToken, async (req, res) => {
     });
 
     if (result.success) {
-      res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
+      console.log('Email Route: Email sent successfully');
+      res.json({
+        success: true,
+        message: 'Email sent successfully',
+        messageId: result.messageId,
+        smtpResponse: result.response
+      });
     } else {
+      console.error('Email Route: Email service reported failure:', result.error);
       res.status(500).json({ success: false, error: result.error });
     }
   } catch (error) {
-    console.error('Email route error:', error);
+    console.error('Email Route: Unexpected error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
