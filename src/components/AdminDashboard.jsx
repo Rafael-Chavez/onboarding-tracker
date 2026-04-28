@@ -31,15 +31,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchOnboardings();
 
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings(() => {
-      fetchOnboardings();
-    });
-
-    return () => {
-      SupabaseService.unsubscribe(subscription);
-    };
-  }, [fetchOnboardings]);
+    // OriginalApp already subscribes to real-time changes for onboardings.
+    // To prevent redundant network requests and re-renders, we'll only
+    // fetch once on mount or when the view changes.
+  }, [fetchOnboardings, currentView]);
 
   const pendingApprovals = useMemo(() => {
     return onboardings.filter(ob => ob.attendance === 'pending_approval');
