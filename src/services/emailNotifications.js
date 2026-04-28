@@ -27,9 +27,18 @@ export const EmailNotificationService = {
         body: JSON.stringify({ to, subject, body }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      let data;
+      try {
+        data = await response.json();
+      } catch (_e) {
+        return { success: false, error: `Invalid server response (HTTP ${response.status})` };
+      }
+
+      if (!response.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || `Failed to send email (HTTP ${response.status})`
+        };
       }
       return data;
     } catch (error) {
@@ -112,7 +121,7 @@ Generated: ${new Date().toLocaleString()}
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Email sent successfully' : `Email failed to send: ${result.error || 'Unknown error'}`
       };
     } catch (error) {
       console.error('Error sending email notification:', error);

@@ -48,7 +48,18 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Full SMTP response:', JSON.stringify(info, null, 2));
+
+      if (info.rejected && info.rejected.length > 0) {
+        console.warn('Email partially failed. Rejected recipients:', info.rejected);
+      }
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        response: info.response,
+        rejected: info.rejected
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
