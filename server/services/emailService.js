@@ -22,6 +22,8 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
+    console.log(`Attempting to send email to: ${to} with subject: ${subject}`);
+
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
       console.error('Email Error: SMTP credentials not configured in environment variables.');
       return {
@@ -32,26 +34,51 @@ export const EmailService = {
 
     try {
       // Verify connection before sending
+      console.log('Verifying SMTP connection...');
       try {
         await transporter.verify();
+        console.log('SMTP connection verified successfully.');
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
-      const info = await transporter.sendMail({
+      const mailOptions = {
         from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
         to,
         subject,
         text,
         html,
-      });
+      };
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Sending mail with options:', { ...mailOptions, html: '[HTML CONTENT]' });
+      const info = await transporter.sendMail(mailOptions);
+
+      console.log('Message sent successfully!');
+      console.log('Message ID:', info.messageId);
+      console.log('Accepted recipients:', info.accepted);
+      console.log('Rejected recipients:', info.rejected);
+      console.log('Response:', info.response);
+
+      if (info.rejected.length > 0) {
+        console.warn('Some recipients were rejected:', info.rejected);
+      }
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      // Log more details if it's a nodemailer error
+      if (error.code) console.error('Error Code:', error.code);
+      if (error.command) console.error('Error Command:', error.command);
+      if (error.response) console.error('Error Response:', error.response);
+
+      return { success: false, error: `Nodemailer error: ${error.message}`, code: error.code };
     }
   }
 };

@@ -8,6 +8,7 @@ import shiftsRouter from './routes/shifts.js';
 import tradesRouter from './routes/trades.js';
 import emailRouter from './routes/email.js';
 import pool from './config/database.js';
+import { EmailService } from './services/emailService.js';
 
 dotenv.config();
 
@@ -45,6 +46,26 @@ app.use('/api/onboardings', onboardingsRouter);
 app.use('/api/shifts', shiftsRouter);
 app.use('/api/trades', tradesRouter);
 app.use('/api/email', emailRouter);
+
+// Test email configuration on startup
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  EmailService.sendEmail({
+    to: process.env.SMTP_USER,
+    subject: 'Server Started - Email Service Check',
+    body: 'The Onboarding Tracker server has started and the email service is checking its connection.'
+  }).then(result => {
+    if (result.success) {
+      console.log('✅ Email service test successful on startup');
+    } else {
+      console.error('❌ Email service test failed on startup:', result.error);
+    }
+  }).catch(err => {
+    console.error('❌ Email service test error on startup:', err);
+  });
+} else {
+  console.warn('⚠️ Email service not fully configured. SMTP_USER and SMTP_PASS are required.');
+}
+
 
 // Root endpoint
 app.get('/', (req, res) => {
