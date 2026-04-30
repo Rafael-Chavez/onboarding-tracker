@@ -27,11 +27,25 @@ export const EmailNotificationService = {
         body: JSON.stringify({ to, subject, body }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      // Handle non-JSON responses or empty responses
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        throw new Error(`Unexpected response from server: ${text.substring(0, 100)}`);
       }
-      return data;
+
+      // Check both response.ok AND data.success
+      if (!response.ok || data.success === false) {
+        return {
+          success: false,
+          error: data.error || data.message || `Server error (HTTP ${response.status})`
+        };
+      }
+
+      return { success: true, messageId: data.messageId };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };

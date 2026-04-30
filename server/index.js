@@ -77,7 +77,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║   Onboarding Tracker API Server               ║
@@ -85,6 +85,10 @@ app.listen(PORT, () => {
 ║   Environment: ${process.env.NODE_ENV || 'development'}                   ║
 ╚════════════════════════════════════════════════╝
   `);
+
+  // Verify email connection on startup
+  const { EmailService } = await import('./services/emailService.js');
+  await EmailService.verifyConnection();
 });
 
 // Graceful shutdown
