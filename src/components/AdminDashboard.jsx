@@ -1,4 +1,4 @@
-import { useState, useCallback, useTransition, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useTransition } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { SupabaseService } from '../services/supabase';
 import OriginalApp from '../OriginalApp';
@@ -12,66 +12,12 @@ export default function AdminDashboard() {
   const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isPending, startTransition] = useTransition();
-  const [onboardings, setOnboardings] = useState([]);
-  const fetchTimeoutRef = useRef(null);
-
   const handleViewChange = useCallback((newView) => {
     startTransition(() => {
       setCurrentView(newView);
     });
   }, []);
 
-  // Load onboardings for pending approvals
-  const fetchOnboardings = useCallback(async () => {
-    const result = await SupabaseService.getAllOnboardings();
-    if (result.success) {
-      setOnboardings(result.onboardings);
-    }
-  }, []);
-
-  // Debounced fetch to prevent excessive re-renders from real-time updates
-  const debouncedFetchOnboardings = useCallback(() => {
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
-    }
-    fetchTimeoutRef.current = setTimeout(() => {
-      fetchOnboardings();
-    }, 300);
-  }, [fetchOnboardings]);
-
-  useEffect(() => {
-    fetchOnboardings();
-
-    // Subscribe to real-time changes with debounced updates
-    const subscription = SupabaseService.subscribeToOnboardings(() => {
-      debouncedFetchOnboardings();
-    });
-
-    return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-      SupabaseService.unsubscribe(subscription);
-    };
-  }, [fetchOnboardings, debouncedFetchOnboardings]);
-
-  const pendingApprovals = useMemo(() => {
-    return onboardings.filter(ob => ob.attendance === 'pending_approval');
-  }, [onboardings]);
-
-  const approveCompletion = useCallback(async (id) => {
-    const result = await SupabaseService.approveCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
-    }
-  }, []);
-
-  const rejectCompletion = useCallback(async (id) => {
-    const result = await SupabaseService.rejectCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
-    }
-  }, []);
 
   const renderContent = () => {
     switch (currentView) {
@@ -107,13 +53,6 @@ export default function AdminDashboard() {
       default:
         return (
           <div className="admin-app-wrapper">
-            <div className="p-4 md:p-8">
-              <PendingApprovalsAlert
-                pendingApprovals={pendingApprovals}
-                onApprove={approveCompletion}
-                onReject={rejectCompletion}
-              />
-            </div>
             <OriginalApp />
           </div>
         );

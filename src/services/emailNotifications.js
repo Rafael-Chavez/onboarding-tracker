@@ -27,11 +27,25 @@ export const EmailNotificationService = {
         body: JSON.stringify({ to, subject, body }),
       });
 
-      const data = await response.json();
       if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+        const errorData = await response.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errorData.error || errorData.message || `HTTP error ${response.status}`
+        };
       }
-      return data;
+
+      const data = await response.json();
+
+      // Even if response.ok is true, we need to check if the backend actually succeeded
+      if (data && data.success) {
+        return { success: true, messageId: data.messageId };
+      } else {
+        return {
+          success: false,
+          error: data?.error || 'Email service reported failure despite successful request'
+        };
+      }
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
