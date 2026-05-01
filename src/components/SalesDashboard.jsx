@@ -78,6 +78,49 @@ export default function SalesDashboard() {
     });
   }, []);
 
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const result = await SupabaseService.getAllOnboardings();
+      if (result.success) {
+        setOnboardings(result.onboardings);
+      } else {
+        setError(result.error);
+      }
+      setLoading(false);
+    };
+    load();
+
+    const sub = SupabaseService.subscribeToOnboardings(() => load());
+    return () => SupabaseService.unsubscribe(sub);
+  }, []);
+
+  const monthOptions = useMemo(() => getMonthOptions(onboardings), [onboardings]);
+
+  // Build a map of id -> computed session number based on account number + chronological date order
+  const sessionNumberMap = useMemo(() => {
+    // Group all onboardings by account number
+    const byAccount = {};
+    for (const o of onboardings) {
+      const key = (o.accountNumber || '').trim();
+      if (!byAccount[key]) byAccount[key] = [];
+      byAccount[key].push(o);
+    }
+    // Sort each group by date ascending (oldest first = session #1)
+    const map = {};
+    for (const key of Object.keys(byAccount)) {
+      const sorted = [...byAccount[key]].sort((a, b) => {
+        const da = a.date || '';
+        const db = b.date || '';
+        return da.localeCompare(db);
+      });
+      sorted.forEach((o, idx) => {
+        map[o.id] = idx + 1;
+      });
+    }
+    return map;
+  }, [onboardings]);
+
   const handleSyncToSheets = useCallback(async () => {
     setSyncing(true);
     setSyncMessage('Preparing data...');
@@ -131,49 +174,6 @@ export default function SalesDashboard() {
       setSyncing(false);
     }
   }, [onboardings, sessionNumberMap]);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const result = await SupabaseService.getAllOnboardings();
-      if (result.success) {
-        setOnboardings(result.onboardings);
-      } else {
-        setError(result.error);
-      }
-      setLoading(false);
-    };
-    load();
-
-    const sub = SupabaseService.subscribeToOnboardings(() => load());
-    return () => SupabaseService.unsubscribe(sub);
-  }, []);
-
-  const monthOptions = useMemo(() => getMonthOptions(onboardings), [onboardings]);
-
-  // Build a map of id -> computed session number based on account number + chronological date order
-  const sessionNumberMap = useMemo(() => {
-    // Group all onboardings by account number
-    const byAccount = {};
-    for (const o of onboardings) {
-      const key = (o.accountNumber || '').trim();
-      if (!byAccount[key]) byAccount[key] = [];
-      byAccount[key].push(o);
-    }
-    // Sort each group by date ascending (oldest first = session #1)
-    const map = {};
-    for (const key of Object.keys(byAccount)) {
-      const sorted = [...byAccount[key]].sort((a, b) => {
-        const da = a.date || '';
-        const db = b.date || '';
-        return da.localeCompare(db);
-      });
-      sorted.forEach((o, idx) => {
-        map[o.id] = idx + 1;
-      });
-    }
-    return map;
-  }, [onboardings]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
