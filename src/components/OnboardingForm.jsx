@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
@@ -11,6 +11,24 @@ const OnboardingForm = ({
   employees,
   addOnboarding
 }) => {
+  const handleEmployeeChange = useCallback((e) => {
+    setSelectedEmployee(e.target.value);
+  }, [setSelectedEmployee]);
+
+  const handleClientChange = useCallback((e) => {
+    setClientName(e.target.value);
+  }, [setClientName]);
+
+  const handleAccountChange = useCallback((e) => {
+    setAccountNumber(e.target.value);
+  }, [setAccountNumber]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      addOnboarding();
+    }
+  }, [addOnboarding]);
+
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
       <h3 className="text-xl font-bold text-white mb-2">
@@ -30,8 +48,8 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Employee</label>
           <select
             value={selectedEmployee}
-            onChange={(e) => setSelectedEmployee(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+            onChange={handleEmployeeChange}
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm transition-colors duration-150 will-change-auto"
           >
             <option value="" className="text-gray-800">Select Employee</option>
             {employees.map(employee => (
@@ -47,9 +65,9 @@ const OnboardingForm = ({
           <input
             type="text"
             value={clientName}
-            onChange={(e) => setClientName(e.target.value)}
+            onChange={handleClientChange}
             placeholder="Enter client name..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm transition-colors duration-150 will-change-auto"
           />
         </div>
 
@@ -58,17 +76,17 @@ const OnboardingForm = ({
           <input
             type="text"
             value={accountNumber}
-            onChange={(e) => setAccountNumber(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addOnboarding()}
+            onChange={handleAccountChange}
+            onKeyDown={handleKeyDown}
             placeholder="Enter account number..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm transition-colors duration-150 will-change-auto"
           />
         </div>
 
         <button
           onClick={addOnboarding}
           disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
-          className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-blue-500/25"
+          className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 shadow-lg hover:shadow-blue-500/25 will-change-auto"
         >
           Add Onboarding
         </button>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 
@@ -70,15 +70,15 @@ export default function SalesDashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setLightMode(prev => {
       const next = !prev;
       try { localStorage.setItem('sales-theme', next ? 'light' : 'dark'); } catch {}
       return next;
     });
-  };
+  }, []);
 
-  const handleSyncToSheets = async () => {
+  const handleSyncToSheets = useCallback(async () => {
     setSyncing(true);
     setSyncMessage('Preparing data...');
 
@@ -130,7 +130,7 @@ export default function SalesDashboard() {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [onboardings, sessionNumberMap]);
 
   useEffect(() => {
     const load = async () => {
@@ -196,12 +196,12 @@ export default function SalesDashboard() {
     });
   }, [onboardings, search, filterEmployee, filterAttendance, filterMonth]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSearch('');
     setFilterEmployee('All');
     setFilterAttendance('All');
     setFilterMonth('All');
-  };
+  }, []);
 
   const activeFilterCount = [
     filterEmployee !== 'All',
@@ -474,7 +474,8 @@ export default function SalesDashboard() {
 
         .data-table tbody tr {
           border-bottom: 1px solid var(--border);
-          transition: background 0.1s;
+          transition: background-color 0.1s ease;
+          will-change: auto;
         }
 
         .data-table tbody tr:nth-child(even) {
@@ -581,6 +582,15 @@ export default function SalesDashboard() {
           box-shadow: 0 0 6px var(--cyan);
         }
 
+        @keyframes pulse-subtle {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+
+        .animate-pulse-subtle {
+          animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
         .status-val {
           color: var(--cyan);
           font-weight: 500;
@@ -623,8 +633,9 @@ export default function SalesDashboard() {
           font-family: 'JetBrains Mono', monospace;
           font-size: 11px;
           color: var(--text-muted);
-          transition: all 0.2s;
+          transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
           white-space: nowrap;
+          will-change: auto;
         }
 
         .theme-toggle:hover {

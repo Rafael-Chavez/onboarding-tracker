@@ -540,6 +540,15 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+      <style>{`
+        @keyframes pulse-subtle {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        .animate-pulse-subtle {
+          animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
       {/* Header */}
       <DashboardHeader stats={stats} syncStatus={syncStatus} />
 
@@ -557,7 +566,7 @@ function App() {
       <div className="w-full mb-6">
         <button
           onClick={() => setShowAllCompleted(!showAllCompleted)}
-          className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-all duration-200 hover:scale-[1.02] shadow-2xl hover:shadow-green-500/25"
+          className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-colors duration-150 shadow-2xl hover:shadow-green-500/25 will-change-auto"
         >
           {showAllCompleted ? 'Hide' : 'Show'} Completed Stats
         </button>
@@ -621,22 +630,22 @@ function App() {
               <div className="flex items-center justify-between mb-6">
                 <button
                   onClick={() => navigateMonth(-1)}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors duration-150 text-white/80 hover:text-white will-change-auto"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                
+
                 <h2 className="text-2xl font-bold text-white">
                   {formatDateForDisplay(currentDate)}
                 </h2>
-                
+
                 <button
                   onClick={() => navigateMonth(1)}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-all duration-200 text-white/80 hover:text-white hover:scale-110"
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors duration-150 text-white/80 hover:text-white will-change-auto"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
@@ -667,20 +676,20 @@ function App() {
                       key={day}
                       onClick={() => setSelectedDate(date)}
                       className={`
-                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-all duration-200 p-2 sm:p-3
+                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-colors duration-150 p-2 sm:p-3 will-change-auto
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
                         ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
                         ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
                         border border-white/10
                       `}
                     >
-                      <div className={`text-sm sm:text-base font-medium ${isToday ? 'text-white' : 'text-white/90'}`}>
+                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
                         {day}
                       </div>
 
                       {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse">
+                        <div className="absolute bottom-1 right-1 pointer-events-none">
+                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
                             {dayOnboardings.length}
                           </div>
                         </div>

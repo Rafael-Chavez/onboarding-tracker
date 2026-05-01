@@ -1,4 +1,4 @@
-import { useState, useCallback, useTransition, useEffect, useMemo } from 'react';
+import { useState, useCallback, useTransition, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { SupabaseService } from '../services/supabase';
 import OriginalApp from '../OriginalApp';
@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isPending, startTransition] = useTransition();
   const [onboardings, setOnboardings] = useState([]);
+  const fetchTimeoutRef = useRef(null);
 
   const handleViewChange = useCallback((newView) => {
     startTransition(() => {
@@ -28,18 +29,31 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // Debounced fetch to prevent excessive re-renders from real-time updates
+  const debouncedFetchOnboardings = useCallback(() => {
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchOnboardings();
+    }, 300);
+  }, [fetchOnboardings]);
+
   useEffect(() => {
     fetchOnboardings();
 
-    // Subscribe to real-time changes
+    // Subscribe to real-time changes with debounced updates
     const subscription = SupabaseService.subscribeToOnboardings(() => {
-      fetchOnboardings();
+      debouncedFetchOnboardings();
     });
 
     return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
       SupabaseService.unsubscribe(subscription);
     };
-  }, [fetchOnboardings]);
+  }, [fetchOnboardings, debouncedFetchOnboardings]);
 
   const pendingApprovals = useMemo(() => {
     return onboardings.filter(ob => ob.attendance === 'pending_approval');

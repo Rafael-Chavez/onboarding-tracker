@@ -1,16 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 
-export default function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
+function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
   const { logout } = useAuth();
   const [nightShiftData, setNightShiftData] = useState({ current: null, upcoming: [], weekLabel: '' });
 
-  useEffect(() => {
-    loadNightShiftData();
-  }, []);
-
-  const loadNightShiftData = async () => {
+  const loadNightShiftData = useCallback(async () => {
     try {
       const today = new Date();
       const fourWeeksLater = new Date(today);
@@ -67,9 +63,13 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
     } catch (error) {
       console.error('Error loading night shift data:', error);
     }
-  };
+  }, []);
 
-  const getEmployeeColor = (employeeId) => {
+  useEffect(() => {
+    loadNightShiftData();
+  }, [loadNightShiftData]);
+
+  const getEmployeeColor = useCallback((employeeId) => {
     const colorMap = {
       1: 'from-cyan-500 to-blue-500',
       3: 'from-green-500 to-teal-500',
@@ -78,7 +78,7 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
       6: 'from-rose-500 to-pink-500'
     };
     return colorMap[employeeId] || 'from-purple-500 to-pink-500';
-  };
+  }, []);
 
   const { current, upcoming } = nightShiftData;
 
@@ -153,6 +153,7 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
           color: rgba(255, 255, 255, 0.6);
           font-size: 14px;
           font-weight: 500;
+          will-change: auto;
         }
 
         .menu-item:hover {
@@ -314,11 +315,21 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
           font-weight: 600;
           cursor: pointer;
           transition: background-color 0.15s ease, border-color 0.15s ease;
+          will-change: auto;
         }
 
         .logout-btn:hover {
           background: rgba(239, 68, 68, 0.2);
           border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+
+        .animate-pulse-slow {
+          animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
 
@@ -343,7 +354,7 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
         {current && (
           <div className="night-shift-widget">
             <div className="widget-title">
-              <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+              <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse-slow" />
               Night Shift
             </div>
 
@@ -392,3 +403,5 @@ export default function Sidebar({ currentView, onViewChange, employeeName, isAdm
     </div>
   );
 }
+
+export default memo(Sidebar);
