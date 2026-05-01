@@ -6,15 +6,17 @@ dotenv.config();
 /**
  * Service to handle email sending using nodemailer
  */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const getTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+};
 
 export const EmailService = {
   /**
@@ -29,6 +31,8 @@ export const EmailService = {
         error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
       };
     }
+
+    const transporter = getTransporter();
 
     try {
       // Verify connection before sending
@@ -47,11 +51,34 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:');
+      console.log('- Message ID:', info.messageId);
+      console.log('- Recipients:', info.accepted);
+
+      if (info.rejected && info.rejected.length > 0) {
+        console.warn('- Rejected recipients:', info.rejected);
+      }
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+
+      // Provide more specific error messages based on SMTP error codes
+      let errorMessage = `Nodemailer error: ${error.message}`;
+      if (error.code === 'EAUTH') {
+        errorMessage = 'Authentication failed. Please check your SMTP_USER and SMTP_PASS.';
+      } else if (error.code === 'ESOCKET') {
+        errorMessage = 'Network connection error. Check your firewall and SMTP settings.';
+      } else if (error.code === 'ETIMEOUT') {
+        errorMessage = 'SMTP connection timed out.';
+      }
+
+      return { success: false, error: errorMessage };
     }
   }
 };
