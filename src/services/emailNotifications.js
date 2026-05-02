@@ -28,8 +28,11 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      if (!response.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`
+        };
       }
       return data;
     } catch (error) {

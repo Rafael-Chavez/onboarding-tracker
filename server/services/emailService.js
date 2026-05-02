@@ -47,8 +47,20 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:');
+      console.log('- Message ID:', info.messageId);
+      console.log('- Recipients:', info.accepted);
+      console.log('- Response:', info.response);
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        info: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };

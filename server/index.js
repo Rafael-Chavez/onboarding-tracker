@@ -77,7 +77,27 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  // Test email connection on startup
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const { EmailService } = await import('./services/emailService.js');
+      console.log('Testing email service connection...');
+      const result = await EmailService.sendEmail({
+        to: process.env.SMTP_USER,
+        subject: 'Server Started',
+        body: `Onboarding Tracker API server started at ${new Date().toISOString()}`
+      });
+      if (result.success) {
+        console.log('Email service connection verified');
+      } else {
+        console.warn('Email service verification failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Error during email service verification:', error);
+    }
+  }
+
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║   Onboarding Tracker API Server               ║
