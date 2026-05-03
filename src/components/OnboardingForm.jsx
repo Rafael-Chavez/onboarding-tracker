@@ -1,33 +1,44 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+
   const handleEmployeeChange = useCallback((e) => {
     setSelectedEmployee(e.target.value);
-  }, [setSelectedEmployee]);
+  }, []);
 
   const handleClientChange = useCallback((e) => {
     setClientName(e.target.value);
-  }, [setClientName]);
+  }, []);
 
   const handleAccountChange = useCallback((e) => {
     setAccountNumber(e.target.value);
-  }, [setAccountNumber]);
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
+      addOnboarding({
+        selectedEmployee,
+        clientName,
+        accountNumber
+      });
+      // Clear local form state after submission
+      setClientName('');
+      setAccountNumber('');
+    }
+  }, [selectedEmployee, clientName, accountNumber, addOnboarding]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
-      addOnboarding();
+      handleSubmit();
     }
-  }, [addOnboarding]);
+  }, [handleSubmit]);
 
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -84,7 +95,7 @@ const OnboardingForm = ({
         </div>
 
         <button
-          onClick={addOnboarding}
+          onClick={handleSubmit}
           disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 shadow-lg hover:shadow-blue-500/25 will-change-auto"
         >
