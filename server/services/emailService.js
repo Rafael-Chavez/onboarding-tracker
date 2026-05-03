@@ -48,10 +48,27 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Full SMTP Response:', JSON.stringify(info, null, 2));
+
+      if (info.rejected && info.rejected.length > 0) {
+        console.warn('Email was rejected by some recipients:', info.rejected);
+        return {
+          success: false,
+          error: `Email rejected by: ${info.rejected.join(', ')}`,
+          messageId: info.messageId,
+          info
+        };
+      }
+
+      return { success: true, messageId: info.messageId, info };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
   }
 };
