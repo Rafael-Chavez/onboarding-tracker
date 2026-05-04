@@ -5,6 +5,8 @@ const ADMIN_EMAIL = 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
+  ADMIN_EMAIL,
+
   /**
    * Internal method to send email via backend API
    */
@@ -27,11 +29,25 @@ export const EmailNotificationService = {
         body: JSON.stringify({ to, subject, body }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      // Handle non-JSON responses or empty responses
+      const contentType = response.headers.get("content-type");
+      let data;
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { success: response.ok, message: text, error: !response.ok ? `HTTP ${response.status}: ${text}` : null };
       }
-      return data;
+
+      // Check both response.ok AND the data.success flag
+      if (!response.ok || data.success === false) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`
+        };
+      }
+
+      return { success: true, ...data };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
