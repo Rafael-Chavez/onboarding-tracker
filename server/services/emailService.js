@@ -47,11 +47,30 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:');
+      console.log('  Message ID:', info.messageId);
+      console.log('  Accepted:', info.accepted);
+      console.log('  Rejected:', info.rejected);
+      console.log('  Response:', info.response);
+
+      if (info.rejected && info.rejected.length > 0) {
+        console.warn('Email was rejected by some recipients:', info.rejected);
+        return {
+          success: false,
+          error: `Email rejected by: ${info.rejected.join(', ')}`,
+          messageId: info.messageId
+        };
+      }
+
+      return { success: true, messageId: info.messageId, response: info.response };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
   }
 };
