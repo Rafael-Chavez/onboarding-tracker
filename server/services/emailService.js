@@ -31,9 +31,15 @@ export const EmailService = {
     }
 
     try {
+      console.log('--- Email Send Attempt ---');
+      console.log('To:', to);
+      console.log('Subject:', subject);
+
       // Verify connection before sending
       try {
+        console.log('Verifying SMTP connection...');
         await transporter.verify();
+        console.log('SMTP Connection verified successfully');
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
@@ -48,10 +54,22 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Full response:', info);
+
+      if (info.rejected && info.rejected.length > 0) {
+        console.warn('Recipients rejected:', info.rejected);
+      }
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return { success: false, error: `Nodemailer error: ${error.message}`, code: error.code };
     }
   }
 };
