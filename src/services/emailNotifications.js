@@ -5,6 +5,8 @@ const ADMIN_EMAIL = 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
+  ADMIN_EMAIL,
+
   /**
    * Internal method to send email via backend API
    */
@@ -94,6 +96,12 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.details) {
+        console.log('%cSMTP Response:', 'font-weight: bold;', result.details.response);
+        if (result.details.rejected && result.details.rejected.length > 0) {
+          console.warn('%cRejected Recipients:', 'font-weight: bold; color: #ef4444;', result.details.rejected);
+        }
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
@@ -105,7 +113,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
@@ -170,6 +179,9 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.details) {
+        console.log('%cSMTP Response:', 'font-weight: bold;', result.details.response);
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
@@ -180,7 +192,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
