@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
+import CalendarGrid from './components/CalendarGrid'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
 import NightShiftBanner from './components/NightShiftBanner'
@@ -48,9 +49,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -87,7 +85,8 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber } = formData;
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -110,10 +109,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -150,7 +145,7 @@ function App() {
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,14 +260,27 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Memoized Map of onboardings for O(1) lookup
+  const onboardingsByDateMap = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, []);
+      }
+      map.get(ob.date).push(ob);
+    });
+    return map;
+  }, [onboardings]);
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDateMap.get(dateStr) || [];
+  }, [onboardingsByDateMap])
 
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0]
+    return onboardingsByDateMap.get(dateStr) || [];
+  }, [onboardingsByDateMap, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -651,53 +659,14 @@ function App() {
                 </button>
               </div>
 
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2 sm:gap-3 mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-xs sm:text-sm font-medium text-blue-200 py-2">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-20 sm:h-24"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
-                  return (
-                    <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
-                      className={`
-                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-colors duration-150 p-2 sm:p-3 will-change-auto
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
-                        border border-white/10
-                      `}
-                    >
-                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
-                      </div>
-
-                      {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1 pointer-events-none">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
-                            {dayOnboardings.length}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <CalendarGrid
+                currentDate={currentDate}
+                selectedDate={selectedDate}
+                onDateClick={setSelectedDate}
+                getOnboardingsForDate={getOnboardingsForDate}
+                getFirstDayOfMonth={getFirstDayOfMonth}
+                getDaysInMonth={getDaysInMonth}
+              />
             </div>
           </div>
 
@@ -705,12 +674,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />
