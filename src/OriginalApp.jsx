@@ -359,18 +359,37 @@ function App() {
     return { thisMonth, thisMonthCompleted, total }
   }, [onboardings])
 
+  // Optimized version using useMemo for caching and Map for O(1) lookups
+  const completedStatsCache = useMemo(() => {
+    // Build an index: monthStr -> employeeId -> count
+    const index = new Map()
+
+    onboardings.forEach(ob => {
+      if (ob.attendance === 'completed' && ob.month) {
+        if (!index.has(ob.month)) {
+          index.set(ob.month, new Map())
+        }
+        const monthMap = index.get(ob.month)
+        monthMap.set(ob.employeeId, (monthMap.get(ob.employeeId) || 0) + 1)
+      }
+    })
+
+    return index
+  }, [onboardings])
+
   const getAllCompletedStats = useCallback((date = new Date()) => {
     const monthStr = date.toISOString().slice(0, 7)
-    return employees.map(emp => {
-      const completedCount = onboardings.filter(ob =>
-        ob.employeeId === emp.id && ob.attendance === 'completed' && ob.month === monthStr
-      ).length
-      return {
+    const monthMap = completedStatsCache.get(monthStr)
+
+    if (!monthMap) return []
+
+    return employees
+      .map(emp => ({
         ...emp,
-        completed: completedCount
-      }
-    }).filter(emp => emp.completed > 0) // Only show employees with completions
-  }, [onboardings, employees])
+        completed: monthMap.get(emp.id) || 0
+      }))
+      .filter(emp => emp.completed > 0)
+  }, [completedStatsCache, employees])
 
   const [showAllCompleted, setShowAllCompleted] = useState(false)
   const [completedStatsDate, setCompletedStatsDate] = useState(new Date())
@@ -386,26 +405,35 @@ function App() {
     })
   }, [])
 
+  // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
-    let filtered = onboardings.filter(ob => ob.employeeId === employeeId)
+    const monthStr = viewMode === 'monthly' && monthDate ? monthDate.toISOString().slice(0, 7) : null
 
-    // Apply monthly filter if in monthly mode
-    if (viewMode === 'monthly' && monthDate) {
-      const monthStr = monthDate.toISOString().slice(0, 7)
-      filtered = filtered.filter(ob => ob.month === monthStr)
-    }
+    // Single pass filter with combined conditions
+    const filtered = onboardings.filter(ob => {
+      if (ob.employeeId !== employeeId) return false
+      if (monthStr && ob.month !== monthStr) return false
+      return true
+    })
+
+    // Pre-create Date objects once for sorting, reuse for formatting
+    const dateFormatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
 
     return filtered
-      .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date descending (newest first)
-      .map(ob => ({
-        ...ob,
-        formattedDate: new Date(ob.date).toLocaleDateString('en-US', {
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        })
-      }))
+      .map(ob => {
+        const dateObj = new Date(ob.date)
+        return {
+          ...ob,
+          dateObj, // Keep for sorting
+          formattedDate: dateFormatter.format(dateObj)
+        }
+      })
+      .sort((a, b) => b.dateObj - a.dateObj) // Sort by date descending
   }, [onboardings])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
