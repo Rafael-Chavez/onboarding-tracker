@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,7 +33,21 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const checkSmtpHealth = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const result = await EmailNotificationService.verifySmtpHealth();
+      setSmtpStatus(result);
+    } catch (error) {
+      setSmtpStatus({ success: false, error: error.message });
+    } finally {
+      setIsVerifying(false);
+    }
+  }, []);
+
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ loading: true });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -66,14 +82,15 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.loading ? 'bg-blue-500' : testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.loading ? '⌛ Sending...' : (testEmailStatus.success ? '✓ ' : '✗ ') + testEmailStatus.message}
           </div>
         )}
 
         <button
           onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          disabled={testEmailStatus?.loading}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           📧 Send Test Email
         </button>
@@ -93,7 +110,7 @@ export default function EmailNotificationViewer() {
 
       {/* Notification Viewer Panel */}
       {showViewer && (
-        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden">
+        <div className="absolute bottom-16 right-0 w-[550px] max-h-[700px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden flex flex-col">
           <div className="p-4 border-b border-white/10 flex items-center justify-between">
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
@@ -101,17 +118,33 @@ export default function EmailNotificationViewer() {
                 Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
               </p>
             </div>
-            {notifications.length > 0 && (
+            <div className="flex gap-2">
               <button
-                onClick={clearAllNotifications}
-                className="text-red-400 hover:text-red-300 text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors"
+                onClick={checkSmtpHealth}
+                disabled={isVerifying}
+                className="text-cyan-400 hover:text-cyan-300 text-xs px-2 py-1 hover:bg-cyan-500/10 rounded transition-colors border border-cyan-400/30"
               >
-                Clear All
+                {isVerifying ? 'Verifying...' : 'Check SMTP'}
               </button>
-            )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-red-400 hover:text-red-300 text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors border border-red-400/30"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="overflow-y-auto max-h-[500px] p-4">
+          {smtpStatus && (
+            <div className={`mx-4 mt-4 p-3 rounded-lg border text-sm ${smtpStatus.success ? 'bg-green-500/10 border-green-500/40 text-green-300' : 'bg-red-500/10 border-red-500/40 text-red-300'}`}>
+              <div className="font-bold mb-1">{smtpStatus.success ? '✅ SMTP Connection OK' : '❌ SMTP Connection Failed'}</div>
+              <div className="text-xs font-mono break-all">{smtpStatus.message || smtpStatus.error}</div>
+            </div>
+          )}
+
+          <div className="overflow-y-auto flex-1 p-4">
             {notifications.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-white/40 mb-2 text-4xl">📭</div>
@@ -121,7 +154,7 @@ export default function EmailNotificationViewer() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {notifications.map((notification, idx) => (
                   <div
                     key={idx}
@@ -142,6 +175,11 @@ export default function EmailNotificationViewer() {
                             FAILED
                           </span>
                         )}
+                        {notification.backendSent === true && (
+                           <span className="bg-green-500/20 text-green-300 text-[10px] px-1.5 py-0.5 rounded border border-green-500/30 font-bold uppercase tracking-tight">
+                            SENT
+                          </span>
+                        )}
                       </div>
                       <span className="text-white/40 text-xs">
                         {formatTimestamp(notification.timestamp)}
@@ -156,6 +194,21 @@ export default function EmailNotificationViewer() {
                         {notification.body}
                       </div>
                     </div>
+
+                    {notification.details && (
+                      <div className="mb-2 bg-black/40 rounded p-2 text-[10px] font-mono">
+                        <div className="text-white/40 uppercase mb-1 border-b border-white/10 pb-1">SMTP Details</div>
+                        {notification.details.response && (
+                          <div className="text-blue-300 mb-1">Response: {notification.details.response}</div>
+                        )}
+                        {notification.details.rejected && notification.details.rejected.length > 0 && (
+                          <div className="text-red-300">Rejected: {notification.details.rejected.join(', ')}</div>
+                        )}
+                        {notification.details.envelope && (
+                          <div className="text-white/40">From: {notification.details.envelope.from} To: {notification.details.envelope.to.join(', ')}</div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
