@@ -63,13 +63,13 @@ const ApprovalItem = memo(({ ob, onReject, onApprove }) => {
       <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={handleReject}
-          className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-colors will-change-auto"
+          className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-colors"
         >
           Reject
         </button>
         <button
           onClick={handleApprove}
-          className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-colors will-change-auto"
+          className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-colors"
         >
           Approve ✓
         </button>

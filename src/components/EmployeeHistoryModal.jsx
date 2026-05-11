@@ -51,7 +51,7 @@ const EmployeeHistoryModal = ({
               <select
                 value={employeeHistoryViewMode}
                 onChange={(e) => setEmployeeHistoryViewMode(e.target.value)}
-                className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent backdrop-blur-sm"
+                className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
               >
                 <option value="all" className="text-gray-800">All Time</option>
                 <option value="monthly" className="text-gray-800">Monthly View</option>

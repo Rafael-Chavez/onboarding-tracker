@@ -594,7 +594,7 @@ function App() {
       <div className="w-full mb-6">
         <button
           onClick={() => setShowAllCompleted(!showAllCompleted)}
-          className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-colors duration-150 shadow-2xl hover:shadow-green-500/25 will-change-auto"
+          className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-colors shadow-2xl hover:shadow-green-500/25"
         >
           {showAllCompleted ? 'Hide' : 'Show'} Completed Stats
         </button>
@@ -658,7 +658,7 @@ function App() {
               <div className="flex items-center justify-between mb-6">
                 <button
                   onClick={() => navigateMonth(-1)}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-colors duration-150 text-white/80 hover:text-white will-change-auto"
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white"
                 >
                   <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -671,7 +671,7 @@ function App() {
 
                 <button
                   onClick={() => navigateMonth(1)}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-colors duration-150 text-white/80 hover:text-white will-change-auto"
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white"
                 >
                   <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -690,7 +690,7 @@ function App() {
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
                 {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-20 sm:h-24"></div>
+                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
                 ))}
                 {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
                   const day = i + 1
@@ -704,7 +704,7 @@ function App() {
                       key={day}
                       onClick={() => setSelectedDate(date)}
                       className={`
-                        relative h-20 sm:h-24 rounded-xl cursor-pointer transition-colors duration-150 p-2 sm:p-3 will-change-auto
+                        relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
                         ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
                         ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
