@@ -72,6 +72,18 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
+          onClick={async () => {
+            setTestEmailStatus({ success: true, message: 'Checking SMTP...' });
+            const result = await EmailNotificationService.verifyConnection();
+            setTestEmailStatus({ success: result.success, message: result.success ? 'SMTP Connection OK' : `SMTP Error: ${result.error}` });
+            setTimeout(() => setTestEmailStatus(null), 5000);
+          }}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
+
+        <button
           onClick={sendTestEmail}
           className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
