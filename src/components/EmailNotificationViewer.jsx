@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send email...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +42,28 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? '✓ Email Sent Successfully' : `✗ Failed: ${result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 6000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setTestEmailStatus({ success: true, message: 'Verifying SMTP connection...' });
+
+    const result = await EmailNotificationService.verifySMTP();
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? '✓ SMTP Connection Verified' : `✗ SMTP Error: ${result.message}`
+    });
+
+    setIsVerifying(false);
+    setTimeout(() => setTestEmailStatus(null), 6000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -66,10 +86,19 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.success ? 'bg-emerald-600' : 'bg-red-600'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm border border-white/20 backdrop-blur-sm`}>
+            {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50"
+          title="Verify SMTP Configuration"
+        >
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
