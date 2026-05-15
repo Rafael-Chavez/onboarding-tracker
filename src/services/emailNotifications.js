@@ -42,6 +42,33 @@ export const EmailNotificationService = {
    * Send email notification when shifts are traded
    * @param {Object} tradeDetails - Details about the shift trade
    */
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to verify email connection:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   async notifyShiftTrade(tradeDetails) {
     const {
       initiatorName,
