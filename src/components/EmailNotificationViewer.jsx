@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isCheckingSmtp, setIsCheckingSmtp] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,6 +32,17 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const checkSmtpConnection = useCallback(async () => {
+    setIsCheckingSmtp(true);
+    const result = await EmailNotificationService.verifyConnection();
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection OK!' : `SMTP Error: ${result.error || result.message}`
+    });
+    setIsCheckingSmtp(false);
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
+
   const sendTestEmail = useCallback(async () => {
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
@@ -40,7 +52,10 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Test email sent!' : `Send Failed: ${result.error || result.message}`
+    });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
@@ -70,6 +85,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSmtpConnection}
+          disabled={isCheckingSmtp}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isCheckingSmtp ? '⏳ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}

@@ -5,6 +5,24 @@ import { verifyToken } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
+ * GET /api/email/verify
+ * Verifies SMTP connection
+ */
+router.get('/verify', verifyToken, async (req, res) => {
+  try {
+    const result = await EmailService.verifyConnection();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    console.error('Email verification route error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/email/send
  * Sends an email notification
  */
@@ -24,7 +42,12 @@ router.post('/send', verifyToken, async (req, res) => {
     });
 
     if (result.success) {
-      res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
+      res.json({
+        success: true,
+        message: 'Email sent successfully',
+        messageId: result.messageId,
+        details: result.details
+      });
     } else {
       res.status(500).json({ success: false, error: result.error });
     }
