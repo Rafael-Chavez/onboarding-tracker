@@ -18,6 +18,26 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'SMTP credentials not configured (SMTP_USER/SMTP_PASS missing)'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Connection verification failed:', error);
+      return { success: false, error: `SMTP Connection failed: ${error.message}` };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -32,11 +52,9 @@ export const EmailService = {
 
     try {
       // Verify connection before sending
-      try {
-        await transporter.verify();
-      } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
-        return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
+      const verifyResult = await this.verifyConnection();
+      if (!verifyResult.success) {
+        return verifyResult;
       }
 
       const info = await transporter.sendMail({
@@ -48,10 +66,23 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          response: info.response,
+          rejected: info.rejected,
+          envelope: info.envelope
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
   }
 };
