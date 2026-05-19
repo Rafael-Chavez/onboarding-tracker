@@ -8,6 +8,29 @@ export const EmailNotificationService = {
   /**
    * Internal method to send email via backend API
    */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return {
+        success: response.ok && data.success,
+        message: data.message || data.error || 'Connection check failed'
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Internal method to send email via backend API
+   */
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
       // Get the current user's ID token from Firebase
@@ -28,7 +51,7 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
+      if (!response.ok || data.success === false) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
       }
       return data;

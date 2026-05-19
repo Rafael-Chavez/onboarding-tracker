@@ -11,6 +11,7 @@ import OnboardingForm from './components/OnboardingForm'
 import GoogleSheetsSync from './components/GoogleSheetsSync'
 import EmployeeHistoryModal from './components/EmployeeHistoryModal'
 import AllCompletedStats from './components/AllCompletedStats'
+import CalendarGrid from './components/CalendarGrid'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -18,7 +19,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ externalOnboardings, externalFetchOnboardings }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +48,9 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [onboardingsState, setOnboardingsState] = useState([])
+  const onboardings = externalOnboardings || onboardingsState
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -59,16 +62,22 @@ function App() {
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
+    if (externalFetchOnboardings) {
+      return externalFetchOnboardings()
+    }
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setOnboardingsState(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalFetchOnboardings]);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
+    // If onboardings are provided externally, don't fetch or subscribe here
+    if (externalOnboardings) return;
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -80,7 +89,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -256,23 +265,23 @@ function App() {
     }
   }, [autoSync])
 
-  // Calendar helper functions
-  const getDaysInMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [])
 
-  const getFirstDayOfMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }, [])
-
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+  // Memoized Map of onboardings by date for O(1) lookups
+  const onboardingsByDateMap = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (ob.date) {
+        const count = map.get(ob.date) || 0;
+        map.set(ob.date, count + 1);
+      }
+    });
+    return map;
+  }, [onboardings]);
 
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0]
+    return onboardings.filter(ob => ob.date === dateStr)
+  }, [onboardings, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -688,44 +697,12 @@ function App() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
-                  return (
-                    <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
-                      className={`
-                        relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
-                        border border-white/10
-                      `}
-                    >
-                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
-                      </div>
-
-                      {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1 pointer-events-none">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
-                            {dayOnboardings.length}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <CalendarGrid
+                currentDate={currentDate}
+                selectedDate={selectedDate}
+                onboardingsByDate={onboardingsByDateMap}
+                onSelectDate={setSelectedDate}
+              />
             </div>
           </div>
 

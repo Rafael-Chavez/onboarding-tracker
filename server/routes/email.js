@@ -8,6 +8,23 @@ const router = express.Router();
  * POST /api/email/send
  * Sends an email notification
  */
+/**
+ * GET /api/email/verify
+ * Verifies SMTP connection
+ */
+router.get('/verify', verifyToken, async (req, res) => {
+  try {
+    const result = await EmailService.verifyConnection();
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/send', verifyToken, async (req, res) => {
   const { to, subject, body, html } = req.body;
 
