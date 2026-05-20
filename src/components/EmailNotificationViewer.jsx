@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { EmailNotificationService } from '../services/emailNotifications';
+import { auth } from '../config/firebase';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState(null);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,16 +36,41 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const verifySmtp = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setSmtpStatus({ success: response.ok, message: data.message || data.error });
+    } catch (error) {
+      setSmtpStatus({ success: false, message: error.message });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setSmtpStatus(null), 8000);
+    }
+  }, []);
+
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ loading: true, message: 'Sending test email...' });
     const result = await EmailNotificationService.notifyShiftTrade({
-      initiatorName: 'Marc',
-      respondentName: 'Jim',
-      initiatorShiftDate: '2026-04-13',
-      respondentShiftDate: '2026-04-20',
-      status: 'accepted'
+      initiatorName: 'Test User',
+      respondentName: 'Admin',
+      initiatorShiftDate: new Date().toISOString(),
+      respondentShiftDate: new Date(Date.now() + 86400000).toISOString(),
+      status: 'test'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Email sent! Check logs below.' : result.message
+    });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
@@ -63,13 +93,30 @@ export default function EmailNotificationViewer() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
-      <div className="flex items-center gap-2">
+      {/* Status Indicators */}
+      <div className="flex flex-col items-end gap-2 mb-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.success ? 'bg-green-500' : testEmailStatus.loading ? 'bg-blue-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.loading ? '⏳ ' : testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+        {smtpStatus && (
+          <div className={`${smtpStatus.success ? 'bg-emerald-600' : 'bg-rose-600'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm border border-white/20`}>
+            <strong>SMTP Check:</strong> {smtpStatus.message}
+          </div>
+        )}
+      </div>
+
+      {/* Floating Buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+          title="Verify SMTP Connection"
+        >
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,13 +204,19 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.backendSent && (
+                          <span className="text-green-400 text-[10px]">✓ SMTP Accepted</span>
+                        )}
                       </div>
                       {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                        <div className="text-red-400 bg-red-900/20 rounded p-2 mt-1 border border-red-500/20 break-words" title={notification.error}>
+                          <span className="font-bold uppercase text-[9px] block mb-1">Error Details:</span>
                           {notification.error}
                         </div>
                       )}
