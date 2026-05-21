@@ -28,8 +28,12 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      if (!response.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
@@ -208,6 +212,36 @@ Generated: ${new Date().toLocaleString()}
       localStorage.setItem('admin_notifications', JSON.stringify(notifications.slice(0, 50)));
     } catch (error) {
       console.error('Error storing notification:', error);
+    }
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify SMTP connection:', error);
+      return { success: false, error: error.message };
     }
   },
 
