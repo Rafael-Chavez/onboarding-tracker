@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Sending test email...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +46,18 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+    setIsVerifying(false);
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection OK' : `SMTP Error: ${result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -72,10 +86,19 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={testEmailStatus?.isLoading}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {testEmailStatus?.isLoading ? 'Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
@@ -168,6 +191,20 @@ export default function EmailNotificationViewer() {
                         </div>
                       )}
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 pt-2 border-t border-white/5">
+                        <div className="text-[10px] text-white/30 uppercase font-bold mb-1">Server Response</div>
+                        <div className="text-[10px] text-emerald-400/70 font-mono bg-black/10 p-1.5 rounded break-all">
+                          {notification.details.response}
+                        </div>
+                        {notification.details.rejected && notification.details.rejected.length > 0 && (
+                          <div className="mt-1 text-[10px] text-red-400/70 font-mono">
+                            Rejected: {notification.details.rejected.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

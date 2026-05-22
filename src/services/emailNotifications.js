@@ -39,6 +39,36 @@ export const EmailNotificationService = {
   },
 
   /**
+   * Verify SMTP connection health
+   */
+  async verifySMTP() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify SMTP');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify SMTP:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send email notification when shifts are traded
    * @param {Object} tradeDetails - Details about the shift trade
    */
@@ -105,6 +135,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
@@ -180,6 +211,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
