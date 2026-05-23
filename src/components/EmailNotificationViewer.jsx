@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [verifyStatus, setVerifyStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -45,6 +47,20 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const verifySmtp = useCallback(async () => {
+    setIsVerifying(true);
+    setVerifyStatus(null);
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setVerifyStatus({ success: result.success, message: result.message || result.error });
+    } catch (error) {
+      setVerifyStatus({ success: false, message: error.message });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setVerifyStatus(null), 5000);
+    }
+  }, []);
+
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
       EmailNotificationService.clearNotifications();
@@ -65,11 +81,25 @@ export default function EmailNotificationViewer() {
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Button */}
       <div className="flex items-center gap-2">
+        {verifyStatus && (
+          <div className={`${verifyStatus.success ? 'bg-emerald-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {verifyStatus.success ? '✓ ' : '✗ '} {verifyStatus.message}
+          </div>
+        )}
+
         {testEmailStatus && (
           <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className={`${isVerifying ? 'opacity-50 cursor-not-allowed' : ''} bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2`}
+        >
+          {isVerifying ? '⏳ Verifying...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
