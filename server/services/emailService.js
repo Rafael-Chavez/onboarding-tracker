@@ -47,11 +47,54 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:', {
+        messageId: info.messageId,
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          response: info.response,
+          rejected: info.rejected
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'SMTP credentials not configured.'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully.' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      };
     }
   }
 };
