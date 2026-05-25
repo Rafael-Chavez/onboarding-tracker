@@ -72,6 +72,18 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
+          onClick={async () => {
+            setTestEmailStatus({ success: true, message: 'Verifying SMTP...' });
+            const result = await EmailNotificationService.verifyConnection();
+            setTestEmailStatus({ success: result.success, message: result.success ? 'SMTP Healthy' : 'SMTP Error: ' + result.error });
+            setTimeout(() => setTestEmailStatus(null), 5000);
+          }}
+          className="bg-gradient-to-r from-gray-600 to-slate-700 hover:from-gray-700 hover:to-slate-800 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
+
+        <button
           onClick={sendTestEmail}
           className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
@@ -157,7 +169,7 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
@@ -168,6 +180,20 @@ export default function EmailNotificationViewer() {
                         </div>
                       )}
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 pt-2 border-t border-white/5">
+                        <div className="text-[10px] text-white/40 uppercase mb-1">SMTP Details</div>
+                        <div className="text-[10px] font-mono text-green-400/80 break-all bg-black/20 p-1.5 rounded">
+                          {notification.details.response}
+                          {notification.details.rejected?.length > 0 && (
+                            <div className="text-red-400 mt-1">
+                              Rejected: {notification.details.rejected.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
