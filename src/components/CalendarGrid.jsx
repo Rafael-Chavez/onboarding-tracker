@@ -1,0 +1,108 @@
+import { useMemo, memo } from 'react';
+
+const CalendarGrid = ({
+  currentDate,
+  selectedDate,
+  onboardings,
+  onDateSelect,
+  formatDateForDisplay,
+  navigateMonth,
+  getFirstDayOfMonth,
+  getDaysInMonth
+}) => {
+  // Memoize the onboardings lookup map for O(1) access
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, []);
+      }
+      map.get(ob.date).push(ob);
+    });
+    return map;
+  }, [onboardings]);
+
+  const firstDayOfMonth = getFirstDayOfMonth(currentDate);
+  const daysInMonth = getDaysInMonth(currentDate);
+  const todayStr = new Date().toDateString();
+  const selectedDateStr = selectedDate.toDateString();
+
+  return (
+    <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={() => navigateMonth(-1)}
+          className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white"
+        >
+          <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <h2 className="text-2xl font-bold text-white">
+          {formatDateForDisplay(currentDate)}
+        </h2>
+
+        <button
+          onClick={() => navigateMonth(1)}
+          className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/80 hover:text-white"
+        >
+          <svg className="w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Calendar Grid Header */}
+      <div className="grid grid-cols-7 gap-2 sm:gap-3 mb-4">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="text-center text-xs sm:text-sm font-medium text-blue-200 py-2">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-2 sm:gap-3">
+        {Array.from({ length: firstDayOfMonth }, (_, i) => (
+          <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
+        ))}
+        {Array.from({ length: daysInMonth }, (_, i) => {
+          const day = i + 1;
+          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+          const dateISO = date.toISOString().split('T')[0];
+          const dayOnboardings = onboardingsByDate.get(dateISO) || [];
+          const isToday = date.toDateString() === todayStr;
+          const isSelected = date.toDateString() === selectedDateStr;
+
+          return (
+            <div
+              key={day}
+              onClick={() => onDateSelect(date)}
+              className={`
+                relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
+                ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
+                ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
+                ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
+                border border-white/10
+              `}
+            >
+              <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
+                {day}
+              </div>
+
+              {dayOnboardings.length > 0 && (
+                <div className="absolute bottom-1 right-1 pointer-events-none">
+                  <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
+                    {dayOnboardings.length}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default memo(CalendarGrid);
