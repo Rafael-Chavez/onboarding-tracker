@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [verifyStatus, setVerifyStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -30,6 +32,23 @@ export default function EmailNotificationViewer() {
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setVerifyStatus(null);
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setVerifyStatus({
+        success: result.success,
+        message: result.success ? 'SMTP Connection Successful' : `SMTP Error: ${result.error}`
+      });
+    } catch (error) {
+      setVerifyStatus({ success: false, message: `System Error: ${error.message}` });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setVerifyStatus(null), 5000);
+    }
+  }, []);
 
   const sendTestEmail = useCallback(async () => {
     const result = await EmailNotificationService.notifyShiftTrade({
@@ -63,118 +82,129 @@ export default function EmailNotificationViewer() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
-      <div className="flex items-center gap-2">
-        {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
-          </div>
-        )}
-
-        <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
-        >
-          📧 Send Test Email
-        </button>
-
-        <button
-          onClick={() => setShowViewer(!showViewer)}
-          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
-        >
-          {notifications.length > 0 && (
-            <span className="bg-white text-purple-600 rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">
-              {notifications.length}
-            </span>
-          )}
-          {showViewer ? 'Hide' : 'View'} Email Log
-        </button>
-      </div>
-
-      {/* Notification Viewer Panel */}
-      {showViewer && (
-        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden">
-          <div className="p-4 border-b border-white/10 flex items-center justify-between">
-            <div>
-              <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
-              <p className="text-white/60 text-xs">
-                Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
-              </p>
+      {/* Floating Button Area */}
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+          {(testEmailStatus || verifyStatus) && (
+            <div className={`${(testEmailStatus?.success || verifyStatus?.success) ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm border border-white/20`}>
+              {(testEmailStatus?.success || verifyStatus?.success) ? '✓ ' : '✗ '}
+              {testEmailStatus?.message || verifyStatus?.message}
             </div>
-            {notifications.length > 0 && (
-              <button
-                onClick={clearAllNotifications}
-                className="text-red-400 hover:text-red-300 text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
+          )}
 
-          <div className="overflow-y-auto max-h-[500px] p-4">
-            {notifications.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-white/40 mb-2 text-4xl">📭</div>
-                <p className="text-white/60 text-sm">No email notifications yet</p>
-                <p className="text-white/40 text-xs mt-1">
-                  Send a test email or perform a shift trade
+          <button
+            onClick={checkSMTP}
+            disabled={isVerifying}
+            className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 border border-white/20 backdrop-blur-sm disabled:opacity-50"
+          >
+            {isVerifying ? '⏳ Checking...' : '🔍 Check SMTP'}
+          </button>
+
+          <button
+            onClick={sendTestEmail}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          >
+            📧 Send Test Email
+          </button>
+
+          <button
+            onClick={() => setShowViewer(!showViewer)}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          >
+            {notifications.length > 0 && (
+              <span className="bg-white text-purple-600 rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">
+                {notifications.length}
+              </span>
+            )}
+            {showViewer ? 'Hide' : 'View'} Email Log
+          </button>
+        </div>
+
+        {/* Notification Viewer Panel */}
+        {showViewer && (
+          <div className="w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden animate-fade-in">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
+                <p className="text-white/60 text-xs">
+                  Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
                 </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map((notification, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          notification.type === 'shift_trade' ? 'bg-cyan-400' :
-                          notification.type === 'shift_override' ? 'bg-orange-400' :
-                          'bg-purple-400'
-                        }`}></div>
-                        <span className="text-white/80 text-xs font-medium uppercase tracking-wide">
-                          {notification.type?.replace('_', ' ')}
-                        </span>
-                        {notification.backendSent === false && (
-                          <span className="bg-red-500/20 text-red-300 text-[10px] px-1.5 py-0.5 rounded border border-red-500/30 font-bold uppercase tracking-tight">
-                            FAILED
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  className="text-red-400 hover:text-red-300 text-xs px-2 py-1 hover:bg-red-500/10 rounded transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-y-auto max-h-[500px] p-4">
+              {notifications.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-white/40 mb-2 text-4xl">📭</div>
+                  <p className="text-white/60 text-sm">No email notifications yet</p>
+                  <p className="text-white/40 text-xs mt-1">
+                    Send a test email or perform a shift trade
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((notification, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white/5 rounded-lg p-4 border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            notification.type === 'shift_trade' ? 'bg-cyan-400' :
+                            notification.type === 'shift_override' ? 'bg-orange-400' :
+                            'bg-purple-400'
+                          }`}></div>
+                          <span className="text-white/80 text-xs font-medium uppercase tracking-wide">
+                            {notification.type?.replace('_', ' ')}
                           </span>
+                          {notification.backendSent === false && (
+                            <span className="bg-red-500/20 text-red-300 text-[10px] px-1.5 py-0.5 rounded border border-red-500/30 font-bold uppercase tracking-tight">
+                              FAILED
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-white/40 text-xs">
+                          {formatTimestamp(notification.timestamp)}
+                        </span>
+                      </div>
+
+                      <div className="mb-2">
+                        <div className="text-white font-semibold text-sm mb-1">
+                          {notification.subject}
+                        </div>
+                        <div className="text-white/60 text-xs bg-black/20 rounded p-2 font-mono whitespace-pre-wrap overflow-x-auto">
+                          {notification.body}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
                         )}
                       </div>
-                      <span className="text-white/40 text-xs">
-                        {formatTimestamp(notification.timestamp)}
-                      </span>
                     </div>
-
-                    <div className="mb-2">
-                      <div className="text-white font-semibold text-sm mb-1">
-                        {notification.subject}
-                      </div>
-                      <div className="text-white/60 text-xs bg-black/20 rounded p-2 font-mono whitespace-pre-wrap">
-                        {notification.body}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
-                      </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

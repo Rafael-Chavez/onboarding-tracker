@@ -18,6 +18,26 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'SMTP credentials not configured'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true };
+    } catch (error) {
+      console.error('SMTP Connection verification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -35,7 +55,7 @@ export const EmailService = {
       try {
         await transporter.verify();
       } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
+        console.error('SMTP Connection verification failed before send:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
@@ -47,11 +67,23 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:', info.messageId);
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          response: info.response,
+          rejected: info.rejected,
+          envelope: info.envelope
+        }
+      };
     } catch (error) {
-      console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      console.error('Detailed error sending email:', error);
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      };
     }
   }
 };
