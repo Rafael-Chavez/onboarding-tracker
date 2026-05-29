@@ -5,6 +5,8 @@ const ADMIN_EMAIL = 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
+  ADMIN_EMAIL,
+
   /**
    * Internal method to send email via backend API
    */
@@ -29,11 +31,33 @@ export const EmailNotificationService = {
 
       const data = await response.json();
       if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { success: false, error: 'Not authenticated' };
+
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return await response.json();
+    } catch (error) {
       return { success: false, error: error.message };
     }
   },
@@ -105,6 +129,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
@@ -180,6 +205,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 

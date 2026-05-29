@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -45,6 +47,20 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const checkSmtp = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setSmtpStatus(result);
+    } catch (error) {
+      setSmtpStatus({ success: false, error: error.message });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setSmtpStatus(null), 5000);
+    }
+  }, []);
+
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
       EmailNotificationService.clearNotifications();
@@ -62,14 +78,30 @@ export default function EmailNotificationViewer() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      {/* Status Toasts */}
+      {testEmailStatus && (
+        <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+          {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+        </div>
+      )}
+
+      {smtpStatus && (
+        <div className={`${smtpStatus.success ? 'bg-blue-500' : 'bg-orange-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+          {smtpStatus.success ? '✓ SMTP Connected' : `✗ SMTP Error: ${smtpStatus.error}`}
+        </div>
+      )}
+
+      {/* Floating Buttons */}
       <div className="flex items-center gap-2">
-        {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
-          </div>
-        )}
+        <button
+          onClick={checkSmtp}
+          disabled={isVerifying}
+          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+          title="Verify SMTP Connection"
+        >
+          {isVerifying ? '⌛' : '🔍'} Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +189,25 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="mt-2 text-[10px] text-white/40 border-t border-white/5 pt-2">
+                          <p className="font-bold uppercase mb-1">Server Response:</p>
+                          <pre className="bg-black/40 p-2 rounded overflow-x-auto">
+                            {JSON.stringify(notification.details, null, 2)}
+                          </pre>
                         </div>
                       )}
                     </div>

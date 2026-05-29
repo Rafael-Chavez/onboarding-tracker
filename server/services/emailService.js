@@ -48,10 +48,41 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('SMTP Response Details:', JSON.stringify({
+        response: info.response,
+        envelope: info.envelope,
+        accepted: info.accepted,
+        rejected: info.rejected
+      }, null, 2));
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          response: info.response,
+          rejected: info.rejected,
+          envelope: info.envelope
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+        return { success: false, error: 'SMTP credentials missing' };
+      }
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return { success: false, error: error.message };
     }
   }
 };

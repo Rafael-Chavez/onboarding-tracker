@@ -1,33 +1,54 @@
-import { memo, useCallback } from 'react';
+import { memo, useState, useCallback } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [localEmployee, setLocalEmployee] = useState('');
+  const [localClientName, setLocalClientName] = useState('');
+  const [localAccountNumber, setLocalAccountNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleEmployeeChange = useCallback((e) => {
-    setSelectedEmployee(e.target.value);
-  }, [setSelectedEmployee]);
+    setLocalEmployee(e.target.value);
+  }, []);
 
   const handleClientChange = useCallback((e) => {
-    setClientName(e.target.value);
-  }, [setClientName]);
+    setLocalClientName(e.target.value);
+  }, []);
 
   const handleAccountChange = useCallback((e) => {
-    setAccountNumber(e.target.value);
-  }, [setAccountNumber]);
+    setLocalAccountNumber(e.target.value);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!localEmployee || !localClientName.trim() || !localAccountNumber.trim() || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const success = await addOnboarding({
+        employeeId: localEmployee,
+        clientName: localClientName,
+        accountNumber: localAccountNumber
+      });
+
+      if (success) {
+        setLocalClientName('');
+        setLocalAccountNumber('');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [localEmployee, localClientName, localAccountNumber, addOnboarding, isSubmitting]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
-      addOnboarding();
+      handleSubmit();
     }
-  }, [addOnboarding]);
+  }, [handleSubmit]);
 
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -47,9 +68,10 @@ const OnboardingForm = ({
         <div>
           <label className="text-white text-sm font-medium mb-2 block">Employee</label>
           <select
-            value={selectedEmployee}
+            value={localEmployee}
             onChange={handleEmployeeChange}
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            disabled={isSubmitting}
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           >
             <option value="" className="text-gray-800">Select Employee</option>
             {employees.map(employee => (
@@ -64,10 +86,11 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Client Name</label>
           <input
             type="text"
-            value={clientName}
+            value={localClientName}
             onChange={handleClientChange}
+            disabled={isSubmitting}
             placeholder="Enter client name..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           />
         </div>
 
@@ -75,20 +98,21 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Account Number</label>
           <input
             type="text"
-            value={accountNumber}
+            value={localAccountNumber}
             onChange={handleAccountChange}
             onKeyDown={handleKeyDown}
+            disabled={isSubmitting}
             placeholder="Enter account number..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           />
         </div>
 
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleSubmit}
+          disabled={!localEmployee || !localClientName.trim() || !localAccountNumber.trim() || isSubmitting}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-blue-500/25"
         >
-          Add Onboarding
+          {isSubmitting ? 'Adding...' : 'Add Onboarding'}
         </button>
       </div>
     </div>
