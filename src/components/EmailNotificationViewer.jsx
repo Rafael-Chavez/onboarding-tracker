@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ type: 'info', message: 'Sending test email...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +42,31 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Email sent! Check logs for details.' : `Failed: ${result.error}`
+    });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSmtpConnection = useCallback(async () => {
+    setIsVerifying(true);
+    setTestEmailStatus({ type: 'info', message: 'Verifying SMTP connection...' });
+
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setTestEmailStatus({
+        success: result.success,
+        message: result.success ? 'SMTP Connection Successful!' : `SMTP Failed: ${result.message}`
+      });
+    } catch (error) {
+      setTestEmailStatus({ success: false, message: `Error: ${error.message}` });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setTestEmailStatus(null), 5000);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -63,13 +86,26 @@ export default function EmailNotificationViewer() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
+      {/* Floating Buttons */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${
+            testEmailStatus.type === 'info' ? 'bg-blue-500' :
+            testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'
+          } text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.type === 'info' ? '⏳ ' : testEmailStatus.success ? '✓ ' : '✗ '}
+            {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSmtpConnection}
+          disabled={isVerifying}
+          title="Check SMTP Configuration"
+          className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg shadow-lg transition-colors border border-white/20"
+        >
+          {isVerifying ? '⏳' : '⚙️'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -156,6 +192,13 @@ export default function EmailNotificationViewer() {
                         {notification.body}
                       </div>
                     </div>
+
+                    {notification.details && (
+                      <div className="mb-2 p-2 bg-blue-500/10 rounded border border-blue-500/20">
+                        <p className="text-[10px] text-blue-300 font-bold uppercase mb-1">SMTP Response</p>
+                        <p className="text-[10px] text-blue-200 font-mono truncate">{notification.details.response}</p>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
