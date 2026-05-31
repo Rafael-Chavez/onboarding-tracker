@@ -228,5 +228,35 @@ Generated: ${new Date().toLocaleString()}
    */
   clearNotifications() {
     localStorage.removeItem('admin_notifications');
+  },
+
+  /**
+   * Verify SMTP connection status
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify email connection:', error);
+      return { success: false, error: error.message };
+    }
   }
 };

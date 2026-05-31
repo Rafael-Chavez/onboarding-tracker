@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [smtpStatus, setSmtpStatus] = useState(null);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,6 +33,23 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const checkSmtpConnection = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setSmtpStatus({
+        success: result.success,
+        message: result.success ? 'SMTP Connection Successful' : `SMTP Error: ${result.error}`
+      });
+    } catch (error) {
+      setSmtpStatus({ success: false, message: `System Error: ${error.message}` });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setSmtpStatus(null), 10000);
+    }
+  }, []);
+
   const sendTestEmail = useCallback(async () => {
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
@@ -40,7 +59,7 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({ success: result.success, message: result.message || (result.success ? 'Sent' : result.error) });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
@@ -63,13 +82,41 @@ export default function EmailNotificationViewer() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
-      <div className="flex items-center gap-2">
+      {/* Status Messages */}
+      <div className="absolute bottom-16 right-0 mb-4 space-y-2 flex flex-col items-end w-[400px]">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in text-sm border border-white/20 w-full`}>
+            <div className="font-bold mb-0.5">{testEmailStatus.success ? '✓ SUCCESS' : '✗ FAILED'}</div>
+            {testEmailStatus.message}
           </div>
         )}
+
+        {smtpStatus && (
+          <div className={`${smtpStatus.success ? 'bg-emerald-600' : 'bg-rose-600'} text-white px-4 py-3 rounded-lg shadow-xl animate-fade-in text-sm border border-white/20 w-full`}>
+            <div className="font-bold mb-1 flex items-center gap-2">
+              {smtpStatus.success ? (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
+              )}
+              {smtpStatus.success ? 'SMTP STATUS: ONLINE' : 'SMTP STATUS: OFFLINE'}
+            </div>
+            <div className="opacity-90">{smtpStatus.message}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Floating Button Container */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={checkSmtpConnection}
+          disabled={isVerifying}
+          className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-all flex items-center gap-2 backdrop-blur-md border border-white/20 disabled:opacity-50"
+        >
+          {isVerifying ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          ) : '🔍'} Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +204,22 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
+                    {notification.error && (
+                      <div className="mb-2 p-2 bg-red-500/10 border border-red-500/20 rounded">
+                        <div className="text-red-400 text-[10px] font-bold uppercase mb-1">Error Details</div>
+                        <div className="text-red-300 text-[11px] font-mono whitespace-pre-wrap">{notification.error}</div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+                      {notification.backendSent && (
+                        <div className="text-green-400 text-[10px] flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
+                          Verified by SMTP
                         </div>
                       )}
                     </div>

@@ -4,11 +4,9 @@ const AllCompletedStats = ({
   completedStatsDate,
   navigateCompletedStatsMonth,
   formatDateForDisplay,
-  getAllCompletedStats,
+  stats,
   setSelectedEmployeeHistory
 }) => {
-  const stats = getAllCompletedStats(completedStatsDate);
-
   return (
     <div className="w-full mb-6 backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
       {/* Month Navigation Header */}
