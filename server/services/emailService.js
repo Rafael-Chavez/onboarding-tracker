@@ -17,6 +17,16 @@ const transporter = nodemailer.createTransport({
 });
 
 export const EmailService = {
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
@@ -48,7 +58,18 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('SMTP Response:', info.response);
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          response: info.response,
+          rejected: info.rejected,
+          accepted: info.accepted,
+          envelope: info.envelope
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };

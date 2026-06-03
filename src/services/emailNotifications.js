@@ -6,6 +6,36 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
   /**
+   * Check SMTP connection health
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify SMTP connection:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
@@ -28,10 +58,24 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+
+      // Even if response is OK, the email might have been rejected by SMTP
+      if (response.ok && data.success) {
+        if (data.details && data.details.rejected && data.details.rejected.length > 0) {
+          return {
+            success: false,
+            error: `Email rejected by server for: ${data.details.rejected.join(', ')}`,
+            details: data.details
+          };
+        }
+        return data;
       }
-      return data;
+
+      return {
+        success: false,
+        error: data.error || data.message || `HTTP ${response.status}`,
+        details: data.details
+      };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
