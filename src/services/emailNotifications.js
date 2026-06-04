@@ -6,6 +6,26 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
   /**
+   * Verify SMTP connection health
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return { success: response.ok && data.success, message: data.message || data.error };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
@@ -30,6 +50,10 @@ export const EmailNotificationService = {
       const data = await response.json();
       if (!response.ok) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      // Also check if data.success is false (even if 200 OK)
+      if (data.success === false) {
+        return { success: false, error: data.error || 'Backend reported failure' };
       }
       return data;
     } catch (error) {

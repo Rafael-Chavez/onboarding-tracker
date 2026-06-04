@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -30,6 +31,14 @@ export default function EmailNotificationViewer() {
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifyConnection();
+    setTestEmailStatus({ success: result.success, message: result.message || result.error });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+    setIsVerifying(false);
+  }, []);
 
   const sendTestEmail = useCallback(async () => {
     const result = await EmailNotificationService.notifyShiftTrade({
@@ -70,6 +79,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔌 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
