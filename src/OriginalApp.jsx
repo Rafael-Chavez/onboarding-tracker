@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings: externalOnboardings }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,10 +47,7 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
+  const [localOnboardings, setLocalOnboardings] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -58,17 +55,34 @@ function App() {
   const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
+  const onboardings = useMemo(() => externalOnboardings || localOnboardings, [externalOnboardings, localOnboardings]);
+
+  // Map of date string -> array of onboardings for fast calendar lookups
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, []);
+      }
+      map.get(ob.date).push(ob);
+    });
+    return map;
+  }, [onboardings])
+
   const fetchOnboardings = useCallback(async () => {
+    if (externalOnboardings) return;
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setLocalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalOnboardings]);
 
-  // Load onboardings from Supabase on mount
+  // Load onboardings from Supabase on mount (only if not provided by prop)
   useEffect(() => {
+    if (externalOnboardings) return;
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -80,15 +94,16 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
-    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
+  const addOnboarding = useCallback(async (formData) => {
+    const { employeeId, clientName, accountNumber } = formData;
+    if (employeeId && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
         ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
@@ -96,8 +111,8 @@ function App() {
       const sessionNumber = clientOnboardings.length + 1
 
       const newOnboarding = {
-        employeeId: parseInt(selectedEmployee),
-        employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
+        employeeId: parseInt(employeeId),
+        employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
         clientName: clientName.trim(),
         accountNumber: accountNumber.trim(),
         sessionNumber,
@@ -110,10 +125,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -141,6 +152,7 @@ function App() {
         }
 
         // Real-time subscription will update the UI automatically
+        return { success: true };
       } else {
         setSyncStatus({
           isLoading: false,
@@ -148,9 +160,11 @@ function App() {
           type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        return { success: false, error: result.error };
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+    return { success: false, error: 'Missing required fields' };
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -267,8 +281,8 @@ function App() {
 
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -733,12 +747,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />

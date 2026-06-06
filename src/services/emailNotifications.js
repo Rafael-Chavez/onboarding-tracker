@@ -6,6 +6,37 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
   /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      return {
+        success: response.ok && data.success,
+        message: data.message || data.error || `HTTP ${response.status}`,
+        error: response.ok ? null : (data.error || `HTTP ${response.status}`)
+      };
+    } catch (error) {
+      console.error('Failed to verify email connection:', error);
+      return { success: false, error: error.message, message: error.message };
+    }
+  },
+
+  /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
