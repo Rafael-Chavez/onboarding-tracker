@@ -114,7 +114,7 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp onboardings={onboardings} />
           </div>
         );
     }

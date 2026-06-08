@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings: onboardingsProp }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +47,13 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [internalOnboardings, setInternalOnboardings] = useState([])
+
+  // Use prop if provided, otherwise use internal state
+  const onboardings = useMemo(() => {
+    return onboardingsProp || internalOnboardings;
+  }, [onboardingsProp, internalOnboardings]);
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -61,14 +67,16 @@ function App() {
   const fetchOnboardings = useCallback(async () => {
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setInternalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
   }, []);
 
-  // Load onboardings from Supabase on mount
+  // Load onboardings from Supabase on mount only if not provided by prop
   useEffect(() => {
+    if (onboardingsProp) return;
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -80,7 +88,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, onboardingsProp])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -265,10 +273,32 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  const { onboardingsByDate, onboardingsByMonth } = useMemo(() => {
+    const dateMap = new Map()
+    const monthMap = new Map()
+
+    onboardings.forEach(ob => {
+      // Index by date
+      if (!dateMap.has(ob.date)) {
+        dateMap.set(ob.date, [])
+      }
+      dateMap.get(ob.date).push(ob)
+
+      // Index by month
+      if (ob.month) {
+        if (!monthMap.has(ob.month)) {
+          monthMap.set(ob.month, [])
+        }
+        monthMap.get(ob.month).push(ob)
+      }
+    })
+    return { onboardingsByDate: dateMap, onboardingsByMonth: monthMap }
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -309,7 +339,7 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -351,9 +381,10 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const monthOnboardings = onboardingsByMonth.get(currentMonth) || []
+    const thisMonth = monthOnboardings.length
+    const thisMonthCompleted = monthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
@@ -702,7 +733,11 @@ function App() {
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(date)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
