@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +34,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +44,33 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Test email sent successfully!' : `Failed to send: ${result.error}`
+    });
+
+    if (!result.success) {
+      console.error('Email send failure details:', result.error);
+    }
+
+    setTimeout(() => setTestEmailStatus(null), 6000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySmtp = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+
+    const result = await EmailNotificationService.verifySmtp();
+
+    setSmtpStatus({
+      success: result.success,
+      message: result.message
+    });
+
+    setIsVerifying(false);
+    setTimeout(() => setSmtpStatus(null), 8000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -64,12 +91,30 @@ export default function EmailNotificationViewer() {
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Button */}
-      <div className="flex items-center gap-2">
-        {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+      <div className="flex flex-col items-end gap-2">
+        {smtpStatus && (
+          <div className={`${smtpStatus.success ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded-lg shadow-xl animate-fade-in max-w-sm text-sm border border-white/20`}>
+            <div className="font-bold flex items-center gap-2">
+              {smtpStatus.success ? '✅ SMTP Online' : '❌ SMTP Offline'}
+            </div>
+            <div className="text-white/90 text-xs mt-1">{smtpStatus.message}</div>
           </div>
         )}
+
+        {testEmailStatus && (
+          <div className={`${testEmailStatus.success ? 'bg-blue-600' : 'bg-red-600'} text-white px-4 py-2 rounded-lg shadow-xl animate-fade-in max-w-sm text-sm border border-white/20`}>
+            {testEmailStatus.success ? '📧 ' : '❌ '} {testEmailStatus.message}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+        <button
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -89,6 +134,7 @@ export default function EmailNotificationViewer() {
           )}
           {showViewer ? 'Hide' : 'View'} Email Log
         </button>
+        </div>
       </div>
 
       {/* Notification Viewer Panel */}

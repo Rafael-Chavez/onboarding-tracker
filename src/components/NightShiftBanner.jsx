@@ -1,14 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { supabase } from '../config/supabase';
 
-export default function NightShiftBanner() {
+const NightShiftBanner = () => {
   const [nightShiftData, setNightShiftData] = useState({ current: null, upcoming: [], weekLabel: '' });
 
-  useEffect(() => {
-    loadNightShiftData();
-  }, []);
-
-  const loadNightShiftData = async () => {
+  const loadNightShiftData = useCallback(async () => {
     try {
       const today = new Date();
       const fourWeeksLater = new Date(today);
@@ -67,9 +63,13 @@ export default function NightShiftBanner() {
     } catch (error) {
       console.error('Error loading night shift data:', error);
     }
-  };
+  }, []);
 
-  const getEmployeeColor = (employeeId) => {
+  useEffect(() => {
+    loadNightShiftData();
+  }, [loadNightShiftData]);
+
+  const getEmployeeColor = useCallback((employeeId) => {
     const colorMap = {
       1: 'from-cyan-500 to-blue-500',
       3: 'from-green-500 to-teal-500',
@@ -78,9 +78,9 @@ export default function NightShiftBanner() {
       6: 'from-rose-500 to-pink-500'
     };
     return colorMap[employeeId] || 'from-purple-500 to-pink-500';
-  };
+  }, []);
 
-  const getEmployeeTextColor = (employeeId) => {
+  const getEmployeeTextColor = useCallback((employeeId) => {
     const colorMap = {
       1: 'text-cyan-300',
       3: 'text-green-300',
@@ -89,7 +89,7 @@ export default function NightShiftBanner() {
       6: 'text-rose-300'
     };
     return colorMap[employeeId] || 'text-purple-300';
-  };
+  }, []);
 
   const { current, upcoming, weekLabel } = nightShiftData;
 
@@ -151,4 +151,6 @@ export default function NightShiftBanner() {
       </div>
     </div>
   )
-}
+};
+
+export default memo(NightShiftBanner);
