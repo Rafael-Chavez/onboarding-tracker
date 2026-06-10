@@ -29,11 +29,34 @@ export const EmailNotificationService = {
 
       const data = await response.json();
       if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection status via backend
+   */
+  async verifySmtpConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return { success: false, error: 'Authentication required' };
+
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      return await response.json();
+    } catch (error) {
       return { success: false, error: error.message };
     }
   },
@@ -105,14 +128,16 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -180,13 +205,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         error: result.success ? null : result.error,
-        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

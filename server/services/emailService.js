@@ -18,6 +18,30 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'Email service is not configured. Please set SMTP_USER and SMTP_PASS.'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection is healthy' };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return {
+        success: false,
+        error: `SMTP Connection failed: ${error.message}`,
+        details: error
+      };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -48,10 +72,23 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
   }
 };
