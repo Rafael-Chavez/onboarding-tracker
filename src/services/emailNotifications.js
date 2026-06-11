@@ -31,7 +31,13 @@ export const EmailNotificationService = {
       if (!response.ok) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
       }
-      return data;
+      return {
+        success: true,
+        messageId: data.messageId,
+        accepted: data.accepted,
+        rejected: data.rejected,
+        details: data.details
+      };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
@@ -228,5 +234,35 @@ Generated: ${new Date().toLocaleString()}
    */
   clearNotifications() {
     localStorage.removeItem('admin_notifications');
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify connection');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify email connection:', error);
+      return { success: false, error: error.message };
+    }
   }
 };

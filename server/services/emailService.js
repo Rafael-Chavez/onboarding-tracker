@@ -48,10 +48,29 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+        details: info.response
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection is healthy' };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return { success: false, error: error.message };
     }
   }
 };

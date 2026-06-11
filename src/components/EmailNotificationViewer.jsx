@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +47,14 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySmtp = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifyConnection();
+    setTestEmailStatus({ success: result.success, message: result.success ? '✓ SMTP connection is healthy' : `✗ SMTP error: ${result.error}` });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+    setIsVerifying(false);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -76,6 +87,14 @@ export default function EmailNotificationViewer() {
           className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
           📧 Send Test Email
+        </button>
+
+        <button
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
         </button>
 
         <button
@@ -157,14 +176,33 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1 mt-2 border-t border-white/5 pt-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {(notification.accepted?.length > 0 || notification.rejected?.length > 0) && (
+                        <div className="text-[10px] flex gap-2">
+                          {notification.accepted?.length > 0 && (
+                            <span className="text-green-400">Accepted: {notification.accepted.join(', ')}</span>
+                          )}
+                          {notification.rejected?.length > 0 && (
+                            <span className="text-red-400">Rejected: {notification.rejected.join(', ')}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {notification.details && (
+                        <div className="text-[10px] text-white/30 italic truncate" title={notification.details}>
+                          Server: {notification.details}
                         </div>
                       )}
                     </div>
