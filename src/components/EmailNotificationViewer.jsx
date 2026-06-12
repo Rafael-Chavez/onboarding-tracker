@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [verifyingSMTP, setVerifyingSMTP] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -61,6 +63,14 @@ export default function EmailNotificationViewer() {
     });
   };
 
+  const checkSMTP = useCallback(async () => {
+    setVerifyingSMTP(true);
+    const result = await EmailNotificationService.verifySMTPConnection();
+    setTestEmailStatus({ success: result.success, message: result.success ? 'SMTP Connection OK' : `SMTP Error: ${result.error}` });
+    setVerifyingSMTP(false);
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Button */}
@@ -70,6 +80,15 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTP}
+          disabled={verifyingSMTP}
+          className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+          title="Check SMTP Connection"
+        >
+          {verifyingSMTP ? '⌛ Checking...' : '🔌 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}

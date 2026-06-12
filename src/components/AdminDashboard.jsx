@@ -59,6 +59,30 @@ export default function AdminDashboard() {
     return onboardings.filter(ob => ob.attendance === 'pending_approval');
   }, [onboardings]);
 
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
+  }, [onboardings])
+
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.month) {
+        if (!map.has(ob.month)) {
+          map.set(ob.month, [])
+        }
+        map.get(ob.month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
+
   const approveCompletion = useCallback(async (id) => {
     const result = await SupabaseService.approveCompletion(id);
     if (result.success) {
@@ -107,14 +131,14 @@ export default function AdminDashboard() {
       default:
         return (
           <div className="admin-app-wrapper">
-            <div className="p-4 md:p-8">
-              <PendingApprovalsAlert
-                pendingApprovals={pendingApprovals}
-                onApprove={approveCompletion}
-                onReject={rejectCompletion}
-              />
-            </div>
-            <OriginalApp />
+            <OriginalApp
+              externalOnboardings={onboardings}
+              onboardingsByDate={onboardingsByDate}
+              onboardingsByMonth={onboardingsByMonth}
+              pendingApprovals={pendingApprovals}
+              onApproveCompletion={approveCompletion}
+              onRejectCompletion={rejectCompletion}
+            />
           </div>
         );
     }

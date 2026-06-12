@@ -18,7 +18,14 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({
+  externalOnboardings,
+  onboardingsByDate: externalOnboardingsByDate,
+  onboardingsByMonth: externalOnboardingsByMonth,
+  pendingApprovals: externalPendingApprovals,
+  onApproveCompletion,
+  onRejectCompletion
+}) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +54,9 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [internalOnboardings, setInternalOnboardings] = useState([])
+  const onboardings = externalOnboardings || internalOnboardings
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -59,16 +68,19 @@ function App() {
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
+    if (externalOnboardings) return
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setInternalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalOnboardings]);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
+    if (externalOnboardings) return
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -80,7 +92,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -166,6 +178,10 @@ function App() {
   }, [])
 
   const approveCompletion = useCallback(async (id) => {
+    if (onApproveCompletion) {
+      return onApproveCompletion(id)
+    }
+
     setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
 
     const result = await SupabaseService.approveCompletion(id)
@@ -194,9 +210,13 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }, [autoSync])
+  }, [autoSync, onApproveCompletion])
 
   const rejectCompletion = useCallback(async (id) => {
+    if (onRejectCompletion) {
+      return onRejectCompletion(id)
+    }
+
     setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
 
     const result = await SupabaseService.rejectCompletion(id)
@@ -225,7 +245,7 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }, [autoSync])
+  }, [autoSync, onRejectCompletion])
 
   const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
     // Update in Supabase
@@ -265,10 +285,22 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  const onboardingsByDate = useMemo(() => {
+    if (externalOnboardingsByDate) return externalOnboardingsByDate
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
+  }, [onboardings, externalOnboardingsByDate])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -307,9 +339,23 @@ function App() {
     })
   }, [])
 
+  const onboardingsByMonth = useMemo(() => {
+    if (externalOnboardingsByMonth) return externalOnboardingsByMonth
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.month) {
+        if (!map.has(ob.month)) {
+          map.set(ob.month, [])
+        }
+        map.get(ob.month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings, externalOnboardingsByMonth])
+
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -339,7 +385,7 @@ function App() {
       byEmployee,
       completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
     }
-  }, [onboardings, employees])
+  }, [onboardingsByMonth, employees])
 
   const monthlyStats = useMemo(() => {
     return getMonthlyCompletionStats(overviewDate)
@@ -351,13 +397,14 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const monthOnboardings = onboardingsByMonth.get(currentMonth) || []
+    const thisMonth = monthOnboardings.length
+    const thisMonthCompleted = monthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }, [onboardings])
+  }, [onboardings, onboardingsByMonth])
 
   // Optimized version using useMemo for caching and Map for O(1) lookups
   const completedStatsCache = useMemo(() => {
@@ -563,8 +610,9 @@ function App() {
   }, [onboardings])
 
   const pendingApprovals = useMemo(() => {
+    if (externalPendingApprovals) return externalPendingApprovals
     return onboardings.filter(ob => ob.attendance === 'pending_approval')
-  }, [onboardings])
+  }, [onboardings, externalPendingApprovals])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">

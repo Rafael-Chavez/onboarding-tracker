@@ -198,6 +198,28 @@ Generated: ${new Date().toLocaleString()}
   },
 
   /**
+   * Verify SMTP connection via backend
+   */
+  async verifySMTPConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to verify SMTP:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Store notification for admin viewing
    */
   storeNotification(notification) {

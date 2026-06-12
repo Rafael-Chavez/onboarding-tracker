@@ -18,6 +18,19 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Connection verification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -48,7 +61,19 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Accepted recipients:', info.accepted);
+      console.log('Rejected recipients:', info.rejected);
+      console.log('Response from server:', info.response);
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
