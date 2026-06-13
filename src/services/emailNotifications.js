@@ -39,6 +39,27 @@ export const EmailNotificationService = {
   },
 
   /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Failed to verify SMTP:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send email notification when shifts are traded
    * @param {Object} tradeDetails - Details about the shift trade
    */
@@ -105,12 +126,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
+        details: result.details,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };

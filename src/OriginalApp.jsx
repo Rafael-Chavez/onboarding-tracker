@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
+import { useState, useMemo, useCallback, useTransition, memo } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
@@ -18,7 +18,21 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({
+  onboardings = [],
+  onboardingsByDate = new Map(),
+  onboardingsByMonth = new Map(),
+  syncStatus = { isLoading: false, message: '', type: '' },
+  autoSync = true,
+  setAutoSync = () => {},
+  addOnboarding,
+  deleteOnboarding,
+  approveCompletion,
+  rejectCompletion,
+  updateOnboardingAttendance,
+  importFromGoogleSheets,
+  testSheetsConnection
+}) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -26,235 +40,15 @@ function App() {
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
     { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ])
-  
-  // Load data from localStorage
-  const loadFromStorage = useCallback((key, defaultValue) => {
-    try {
-      const item = localStorage.getItem(key)
-      return item ? JSON.parse(item) : defaultValue
-    } catch (error) {
-      console.error(`Error loading ${key} from localStorage:`, error)
-      return defaultValue
-    }
-  }, [])
 
-  // Save data to localStorage
-  const saveToStorage = useCallback((key, value) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value))
-    } catch (error) {
-      console.error(`Error saving ${key} to localStorage:`, error)
-    }
-  }, [])
-
-  const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
-  const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
   const [isPending, startTransition] = useTransition()
-  const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
-  const fetchOnboardings = useCallback(async () => {
-    const result = await SupabaseService.getAllOnboardings()
-    if (result.success) {
-      setOnboardings(result.onboardings)
-    } else {
-      console.error('Error loading onboardings:', result.error)
-    }
-  }, []);
-
-  // Load onboardings from Supabase on mount
-  useEffect(() => {
-    fetchOnboardings()
-
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
-      console.log('Real-time update detected:', payload)
-      fetchOnboardings()
-    })
-
-    return () => {
-      SupabaseService.unsubscribe(subscription)
-    }
-  }, [fetchOnboardings])
-
-  // Save autoSync setting to localStorage whenever it changes
-  useEffect(() => {
-    saveToStorage('autoSync', autoSync)
-  }, [autoSync, saveToStorage])
-
-  const addOnboarding = useCallback(async () => {
-    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
-      // Find existing onboardings for this client to determine session number
-      const clientOnboardings = onboardings.filter(ob =>
-        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
-      )
-      const sessionNumber = clientOnboardings.length + 1
-
-      const newOnboarding = {
-        employeeId: parseInt(selectedEmployee),
-        employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
-        clientName: clientName.trim(),
-        accountNumber: accountNumber.trim(),
-        sessionNumber,
-        attendance: 'pending',
-        date: selectedDate.toISOString().split('T')[0],
-        month: selectedDate.toISOString().slice(0, 7)
-      }
-
-      // Save to Supabase
-      const result = await SupabaseService.createOnboarding(newOnboarding)
-
-      if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
-        // Auto-sync to Google Sheets if enabled
-        if (autoSync) {
-          setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
-
-          try {
-            await GoogleSheetsService.appendOnboarding({
-              ...newOnboarding,
-              id: result.onboarding.id
-            })
-
-            setSyncStatus({
-              isLoading: false,
-              message: 'Successfully synced to Google Sheets!',
-              type: 'success'
-            })
-            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
-          } catch (error) {
-            setSyncStatus({
-              isLoading: false,
-              message: `Auto-sync to Sheets failed: ${error.message}`,
-              type: 'error'
-            })
-            setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-          }
-        }
-
-        // Real-time subscription will update the UI automatically
-      } else {
-        setSyncStatus({
-          isLoading: false,
-          message: `Failed to add session: ${result.error}`,
-          type: 'error'
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
-      }
-    }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
-
-  const deleteOnboarding = useCallback(async (id) => {
-    const result = await SupabaseService.deleteOnboarding(id)
-    if (!result.success) {
-      console.error('Error deleting onboarding:', result.error)
-      setSyncStatus({
-        isLoading: false,
-        message: `Failed to delete: ${result.error}`,
-        type: 'error'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-    }
-  }, [])
-
-  const approveCompletion = useCallback(async (id) => {
-    setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
-
-    const result = await SupabaseService.approveCompletion(id)
-
-    if (result.success) {
-      setSyncStatus({
-        isLoading: false,
-        message: '✓ Session marked as completed!',
-        type: 'success'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
-
-      // Auto-sync to Google Sheets if enabled
-      if (autoSync) {
-        try {
-          await GoogleSheetsService.updateOnboarding(result.onboarding)
-        } catch (error) {
-          console.error('Error syncing to Google Sheets:', error)
-        }
-      }
-    } else {
-      setSyncStatus({
-        isLoading: false,
-        message: `✗ Error approving: ${result.error}`,
-        type: 'error'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-    }
-  }, [autoSync])
-
-  const rejectCompletion = useCallback(async (id) => {
-    setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
-
-    const result = await SupabaseService.rejectCompletion(id)
-
-    if (result.success) {
-      setSyncStatus({
-        isLoading: false,
-        message: '✓ Session marked as pending',
-        type: 'success'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 2000)
-
-      // Auto-sync to Google Sheets if enabled
-      if (autoSync) {
-        try {
-          await GoogleSheetsService.updateOnboarding(result.onboarding)
-        } catch (error) {
-          console.error('Error syncing to Google Sheets:', error)
-        }
-      }
-    } else {
-      setSyncStatus({
-        isLoading: false,
-        message: `✗ Error rejecting: ${result.error}`,
-        type: 'error'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-    }
-  }, [autoSync])
-
-  const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
-    // Update in Supabase
-    const result = await SupabaseService.updateOnboardingStatus(id, newAttendance)
-
-    if (result.success) {
-      // Auto-sync to Google Sheets if enabled
-      if (autoSync) {
-        try {
-          console.log('🔄 Syncing attendance update to Google Sheets:', result.onboarding)
-          await GoogleSheetsService.updateOnboarding({
-            id: result.onboarding.id,
-            employeeId: result.onboarding.employeeId,
-            employeeName: result.onboarding.employeeName,
-            clientName: result.onboarding.clientName,
-            accountNumber: result.onboarding.accountNumber,
-            sessionNumber: result.onboarding.sessionNumber,
-            date: result.onboarding.date,
-            month: result.onboarding.month,
-            attendance: result.onboarding.attendance
-          })
-        } catch (error) {
-          console.error('Error syncing attendance update to Sheets:', error)
-        }
-      }
-    } else {
-      console.error('Error updating attendance:', result.error)
-    }
-  }, [autoSync])
+  const handleAddOnboarding = useCallback((formData) => {
+    return addOnboarding(formData, employees, selectedDate);
+  }, [addOnboarding, employees, selectedDate]);
 
   // Calendar helper functions
   const getDaysInMonth = useCallback((date) => {
@@ -267,8 +61,8 @@ function App() {
 
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -309,7 +103,7 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -339,7 +133,7 @@ function App() {
       byEmployee,
       completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
     }
-  }, [onboardings, employees])
+  }, [onboardings, employees, onboardingsByMonth])
 
   const monthlyStats = useMemo(() => {
     return getMonthlyCompletionStats(overviewDate)
@@ -351,13 +145,14 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const monthOnboardings = onboardingsByMonth.get(currentMonth) || []
+    const thisMonth = monthOnboardings.length
+    const thisMonthCompleted = monthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }, [onboardings])
+  }, [onboardings.length, onboardingsByMonth])
 
   // Optimized version using useMemo for caching and Map for O(1) lookups
   const completedStatsCache = useMemo(() => {
@@ -409,10 +204,11 @@ function App() {
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
     const monthStr = viewMode === 'monthly' && monthDate ? monthDate.toISOString().slice(0, 7) : null
 
+    const sourceArray = monthStr ? (onboardingsByMonth.get(monthStr) || []) : onboardings;
+
     // Single pass filter with combined conditions
-    const filtered = onboardings.filter(ob => {
+    const filtered = sourceArray.filter(ob => {
       if (ob.employeeId !== employeeId) return false
-      if (monthStr && ob.month !== monthStr) return false
       return true
     })
 
@@ -434,7 +230,7 @@ function App() {
         }
       })
       .sort((a, b) => b.dateObj - a.dateObj) // Sort by date descending
-  }, [onboardings])
+  }, [onboardings, onboardingsByMonth])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
     setEmployeeHistoryMonth(prev => {
@@ -444,123 +240,6 @@ function App() {
     })
   }, [])
 
-  const testSheetsConnection = useCallback(async () => {
-    setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
-    
-    try {
-      const result = await GoogleSheetsService.testConnection()
-      
-      if (result.success) {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: 'Google Sheets connection successful!', 
-          type: 'success' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-      } else {
-        setSyncStatus({ 
-          isLoading: false, 
-          message: `Connection failed: ${result.error}`, 
-          type: 'error' 
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-      }
-    } catch (error) {
-      setSyncStatus({ 
-        isLoading: false, 
-        message: `Connection test failed: ${error.message}`, 
-        type: 'error' 
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-    }
-  }, [])
-
-  const importFromGoogleSheets = useCallback(async () => {
-    setSyncStatus({ isLoading: true, message: 'Importing data from Google Sheets...', type: '' })
-
-    try {
-      // Try API method first, fallback to Apps Script method
-      let result = await GoogleSheetsService.importFromGoogleSheetsAPI()
-
-      // If API method fails with 403, try alternative approach
-      if (!result.success && result.error.includes('403')) {
-        console.log('🔄 API method failed, trying alternative approach...')
-        setSyncStatus({ isLoading: true, message: 'API access denied, trying alternative method...', type: '' })
-        result = await GoogleSheetsService.importFromGoogleAppsScript()
-      }
-
-      if (result.success) {
-        // If we got data, merge it with existing data in Supabase
-        if (result.onboardings && result.onboardings.length > 0) {
-          // Create a map of existing onboardings to avoid duplicates
-          const existingMap = new Map()
-          onboardings.forEach(ob => {
-            const key = `${ob.date}-${ob.clientName}-${ob.accountNumber}`
-            existingMap.set(key, ob)
-          })
-
-          // Add imported onboardings that don't already exist
-          const newOnboardings = []
-          result.onboardings.forEach(importedOb => {
-            const key = `${importedOb.date}-${importedOb.clientName}-${importedOb.accountNumber}`
-            if (!existingMap.has(key)) {
-              newOnboardings.push(importedOb)
-            }
-          })
-
-          if (newOnboardings.length > 0) {
-            // Import to Supabase
-            let successCount = 0
-            let errorCount = 0
-
-            for (const onboarding of newOnboardings) {
-              const importResult = await SupabaseService.createOnboarding(onboarding)
-              if (importResult.success) {
-                successCount++
-              } else {
-                errorCount++
-                console.error('Failed to import:', onboarding, importResult.error)
-              }
-            }
-
-            setSyncStatus({
-              isLoading: false,
-              message: `Successfully imported ${successCount} new onboarding${successCount !== 1 ? 's' : ''} from Google Sheets!${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
-              type: 'success'
-            })
-          } else {
-            setSyncStatus({
-              isLoading: false,
-              message: 'No new data to import - all onboardings already exist.',
-              type: 'success'
-            })
-          }
-        } else {
-          setSyncStatus({
-            isLoading: false,
-            message: result.message || 'No data found in Google Sheet',
-            type: 'success'
-          })
-        }
-
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
-      } else {
-        setSyncStatus({
-          isLoading: false,
-          message: `Import failed: ${result.error}`,
-          type: 'error'
-        })
-        setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-      }
-    } catch (error) {
-      setSyncStatus({
-        isLoading: false,
-        message: `Import failed: ${error.message}`,
-        type: 'error'
-      })
-      setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 5000)
-    }
-  }, [onboardings])
 
   const pendingApprovals = useMemo(() => {
     return onboardings.filter(ob => ob.attendance === 'pending_approval')
@@ -733,14 +412,8 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
-              addOnboarding={addOnboarding}
+              addOnboarding={handleAddOnboarding}
             />
 
             <GoogleSheetsSync
@@ -760,4 +433,4 @@ function App() {
   )
 }
 
-export default App
+export default memo(App)

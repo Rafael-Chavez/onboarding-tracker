@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [verifyStatus, setVerifyStatus] = useState(null);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Attempting to send...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +46,16 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySmtp = useCallback(async () => {
+    setVerifyStatus({ isLoading: true, message: 'Verifying SMTP...' });
+    const result = await EmailNotificationService.verifyConnection();
+    setVerifyStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection OK' : `SMTP Error: ${result.error}`
+    });
+    setTimeout(() => setVerifyStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -65,17 +77,32 @@ export default function EmailNotificationViewer() {
     <div className="fixed bottom-4 right-4 z-50">
       {/* Floating Button */}
       <div className="flex items-center gap-2">
-        {testEmailStatus && (
+        {verifyStatus && !verifyStatus.isLoading && (
+          <div className={`${verifyStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {verifyStatus.success ? '✓ ' : '✗ '} {verifyStatus.message}
+          </div>
+        )}
+
+        {testEmailStatus && !testEmailStatus.isLoading && (
           <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={verifySmtp}
+          disabled={verifyStatus?.isLoading}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          🔌 {verifyStatus?.isLoading ? 'Verifying...' : 'Check SMTP'}
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={testEmailStatus?.isLoading}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          📧 {testEmailStatus?.isLoading ? 'Sending...' : 'Send Test Email'}
         </button>
 
         <button
@@ -157,14 +184,24 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1 mt-2 border-t border-white/5 pt-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="text-[10px] text-white/30 font-mono bg-black/10 p-1.5 rounded mt-1">
+                          <div>Accepted: {notification.details.accepted?.join(', ') || 'none'}</div>
+                          <div>Rejected: {notification.details.rejected?.join(', ') || 'none'}</div>
+                          <div className="truncate" title={notification.details.response}>SMTP: {notification.details.response}</div>
                         </div>
                       )}
                     </div>
