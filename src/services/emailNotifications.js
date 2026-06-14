@@ -224,6 +224,26 @@ Generated: ${new Date().toLocaleString()}
   },
 
   /**
+   * Verify SMTP connection health
+   */
+  async verifySMTP() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('SMTP verification request failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Clear all notifications
    */
   clearNotifications() {

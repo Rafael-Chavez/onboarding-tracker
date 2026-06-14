@@ -24,12 +24,34 @@ router.post('/send', verifyToken, async (req, res) => {
     });
 
     if (result.success) {
-      res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
+      res.json({
+        success: true,
+        message: 'Email sent successfully',
+        messageId: result.messageId,
+        details: result.details
+      });
     } else {
       res.status(500).json({ success: false, error: result.error });
     }
   } catch (error) {
     console.error('Email route error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/email/verify
+ * Verifies SMTP connection
+ */
+router.get('/verify', verifyToken, async (req, res) => {
+  try {
+    const result = await EmailService.verifyConnection();
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });

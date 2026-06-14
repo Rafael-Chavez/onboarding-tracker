@@ -39,21 +39,27 @@ export default function AdminDashboard() {
     }, 300);
   }, [fetchOnboardings]);
 
+  const subscribeToOnboardings = useCallback((callback) => {
+    const subscription = SupabaseService.subscribeToOnboardings(() => {
+      debouncedFetchOnboardings();
+      if (callback) callback();
+    });
+    return () => SupabaseService.unsubscribe(subscription);
+  }, [debouncedFetchOnboardings]);
+
   useEffect(() => {
     fetchOnboardings();
 
     // Subscribe to real-time changes with debounced updates
-    const subscription = SupabaseService.subscribeToOnboardings(() => {
-      debouncedFetchOnboardings();
-    });
+    const unsubscribe = subscribeToOnboardings();
 
     return () => {
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
       }
-      SupabaseService.unsubscribe(subscription);
+      unsubscribe();
     };
-  }, [fetchOnboardings, debouncedFetchOnboardings]);
+  }, [fetchOnboardings, subscribeToOnboardings]);
 
   const pendingApprovals = useMemo(() => {
     return onboardings.filter(ob => ob.attendance === 'pending_approval');
@@ -114,7 +120,11 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp
+              onboardings={onboardings}
+              fetchOnboardings={fetchOnboardings}
+              subscribeToOnboardings={subscribeToOnboardings}
+            />
           </div>
         );
     }

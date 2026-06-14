@@ -18,7 +18,11 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({
+  onboardings = [],
+  fetchOnboardings = () => {},
+  subscribeToOnboardings = () => () => {}
+}) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,10 +51,6 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -58,48 +58,40 @@ function App() {
   const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
-  const fetchOnboardings = useCallback(async () => {
-    const result = await SupabaseService.getAllOnboardings()
-    if (result.success) {
-      setOnboardings(result.onboardings)
-    } else {
-      console.error('Error loading onboardings:', result.error)
-    }
-  }, []);
-
-  // Load onboardings from Supabase on mount
+  // Load onboardings if they aren't provided (standalone mode)
   useEffect(() => {
-    fetchOnboardings()
+    if (onboardings.length === 0) {
+      fetchOnboardings()
+    }
 
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
-      console.log('Real-time update detected:', payload)
+    const unsubscribe = subscribeToOnboardings(() => {
       fetchOnboardings()
     })
 
     return () => {
-      SupabaseService.unsubscribe(subscription)
+      if (unsubscribe) unsubscribe()
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, subscribeToOnboardings, onboardings.length])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
-    if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber } = formData;
+    if (selectedEmployee && clientName && accountNumber) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
-        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
+        ob.clientName.toLowerCase() === clientName.toLowerCase()
       )
       const sessionNumber = clientOnboardings.length + 1
 
       const newOnboarding = {
         employeeId: parseInt(selectedEmployee),
         employeeName: employees.find(e => e.id === parseInt(selectedEmployee))?.name,
-        clientName: clientName.trim(),
-        accountNumber: accountNumber.trim(),
+        clientName,
+        accountNumber,
         sessionNumber,
         attendance: 'pending',
         date: selectedDate.toISOString().split('T')[0],
@@ -110,10 +102,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -141,6 +129,7 @@ function App() {
         }
 
         // Real-time subscription will update the UI automatically
+        return true;
       } else {
         setSyncStatus({
           isLoading: false,
@@ -148,9 +137,11 @@ function App() {
           type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        return false;
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+    return false;
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,10 +256,22 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Index onboardings by date for O(1) lookup
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -351,9 +354,10 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const currentMonthOnboardings = onboardings.filter(ob => ob.month === currentMonth)
+    const thisMonth = currentMonthOnboardings.length
+    const thisMonthCompleted = currentMonthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
@@ -733,12 +737,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />

@@ -33,12 +33,15 @@ export const EmailService = {
     try {
       // Verify connection before sending
       try {
+        console.log('Verifying SMTP connection...');
         await transporter.verify();
+        console.log('SMTP connection verified.');
       } catch (verifyError) {
         console.error('SMTP Connection verification failed:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
+      console.log(`Attempting to send email to ${to}...`);
       const info = await transporter.sendMail({
         from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
         to,
@@ -47,11 +50,38 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:', {
+        messageId: info.messageId,
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection is healthy' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return { success: false, error: error.message };
     }
   }
 };
