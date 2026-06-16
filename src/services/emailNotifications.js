@@ -105,14 +105,16 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -180,13 +182,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         error: result.success ? null : result.error,
-        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

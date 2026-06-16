@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings: externalOnboardings, fetchOnboardings: externalFetchOnboardings }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,11 +47,18 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [internalOnboardings, setInternalOnboardings] = useState([])
+  const onboardings = externalOnboardings || internalOnboardings;
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedDate, _setSelectedDate] = useState(new Date())
+  const setSelectedDate = useCallback((date) => {
+    startTransition(() => {
+      _setSelectedDate(date)
+    })
+  }, [startTransition])
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
@@ -59,28 +66,33 @@ function App() {
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
+    if (externalFetchOnboardings) {
+      return externalFetchOnboardings();
+    }
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setInternalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalFetchOnboardings]);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
-    fetchOnboardings()
-
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
-      console.log('Real-time update detected:', payload)
+    if (!externalOnboardings) {
       fetchOnboardings()
-    })
 
-    return () => {
-      SupabaseService.unsubscribe(subscription)
+      // Subscribe to real-time changes
+      const subscription = SupabaseService.subscribeToOnboardings((payload) => {
+        console.log('Real-time update detected:', payload)
+        fetchOnboardings()
+      })
+
+      return () => {
+        SupabaseService.unsubscribe(subscription)
+      }
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -265,10 +277,36 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Optimized: Group onboardings by date for O(1) lookup in calendar
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
+  }, [onboardings])
+
+  // Optimized: Group onboardings by month for statistics
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.month) {
+        if (!map.has(ob.month)) {
+          map.set(ob.month, [])
+        }
+        map.get(ob.month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -295,7 +333,7 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const navigateOverviewMonth = useCallback((direction) => {
     startTransition(() => {
@@ -305,11 +343,11 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -351,13 +389,14 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const monthOnboardings = onboardingsByMonth.get(currentMonth) || []
+    const thisMonth = monthOnboardings.length
+    const thisMonthCompleted = monthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }, [onboardings])
+  }, [onboardings, onboardingsByMonth])
 
   // Optimized version using useMemo for caching and Map for O(1) lookups
   const completedStatsCache = useMemo(() => {
@@ -398,12 +437,14 @@ function App() {
   const [employeeHistoryMonth, setEmployeeHistoryMonth] = useState(new Date())
 
   const navigateCompletedStatsMonth = useCallback((direction) => {
-    setCompletedStatsDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setCompletedStatsDate(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
-  }, [])
+  }, [startTransition])
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
@@ -437,12 +478,14 @@ function App() {
   }, [onboardings])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
-    setEmployeeHistoryMonth(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setEmployeeHistoryMonth(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
-  }, [])
+  }, [startTransition])
 
   const testSheetsConnection = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
