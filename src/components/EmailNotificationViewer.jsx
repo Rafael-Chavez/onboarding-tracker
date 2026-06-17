@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +34,10 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    if (isSending) return;
+    setIsSending(true);
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +46,26 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
+    setIsSending(false);
     setTestEmailStatus({ success: result.success, message: result.message });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
-  }, [loadNotifications]);
+  }, [loadNotifications, isSending]);
+
+  const verifySmtp = useCallback(async () => {
+    if (isVerifying) return;
+    setIsVerifying(true);
+    setTestEmailStatus({ success: true, message: 'Checking SMTP connection...' });
+
+    const result = await EmailNotificationService.verifyConnection();
+
+    setIsVerifying(false);
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection Successful!' : `SMTP Error: ${result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, [isVerifying]);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -72,10 +94,19 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={isSending}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isSending ? '⌛ Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
@@ -157,7 +188,7 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs mb-1">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
@@ -168,6 +199,15 @@ export default function EmailNotificationViewer() {
                         </div>
                       )}
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 pt-2 border-t border-white/5">
+                        <div className="text-[10px] text-white/40 uppercase mb-1">Backend Details:</div>
+                        <div className="text-[10px] text-blue-300/80 font-mono bg-black/30 p-2 rounded overflow-x-auto">
+                          {JSON.stringify(notification.details, null, 2)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

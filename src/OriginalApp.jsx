@@ -48,9 +48,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -87,7 +84,9 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber } = formData;
+
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -110,10 +109,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -141,6 +136,7 @@ function App() {
         }
 
         // Real-time subscription will update the UI automatically
+        return { success: true };
       } else {
         setSyncStatus({
           isLoading: false,
@@ -148,9 +144,11 @@ function App() {
           type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        return { success: false, error: result.error };
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+    return { success: false, error: 'Missing required fields' };
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,10 +263,37 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Index onboardings by date and month for O(1) lookups
+  const onboardingsIndexed = useMemo(() => {
+    const dateMap = new Map()
+    const monthMap = new Map()
+
+    onboardings.forEach(ob => {
+      // Date mapping
+      if (!dateMap.has(ob.date)) {
+        dateMap.set(ob.date, [])
+      }
+      dateMap.get(ob.date).push(ob)
+
+      // Month mapping
+      if (ob.month) {
+        if (!monthMap.has(ob.month)) {
+          monthMap.set(ob.month, [])
+        }
+        monthMap.get(ob.month).push(ob)
+      }
+    })
+
+    return { dateMap, monthMap }
+  }, [onboardings])
+
+  const onboardingsByDate = onboardingsIndexed.dateMap
+  const onboardingsByMonth = onboardingsIndexed.monthMap
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -309,37 +334,47 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
-    const totalSessions = monthOnboardings.length
-    const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
-    const pending = monthOnboardings.filter(ob => ob.attendance === 'pending').length
-    const cancelled = monthOnboardings.filter(ob => ob.attendance === 'cancelled').length
-    const rescheduled = monthOnboardings.filter(ob => ob.attendance === 'rescheduled').length
-    const noShow = monthOnboardings.filter(ob => ob.attendance === 'no-show').length
+    let completed = 0, pending = 0, cancelled = 0, rescheduled = 0, noShow = 0;
+    const empStats = new Map();
 
-    // Group by employee
-    const byEmployee = employees.map(emp => {
-      const empOnboardings = monthOnboardings.filter(ob => ob.employeeId === emp.id)
-      const empCompleted = empOnboardings.filter(ob => ob.attendance === 'completed').length
-      return {
-        ...emp,
-        total: empOnboardings.length,
-        completed: empCompleted
+    monthOnboardings.forEach(ob => {
+      // Global counts
+      if (ob.attendance === 'completed') completed++;
+      else if (ob.attendance === 'pending') pending++;
+      else if (ob.attendance === 'cancelled') cancelled++;
+      else if (ob.attendance === 'rescheduled') rescheduled++;
+      else if (ob.attendance === 'no-show') noShow++;
+
+      // Per-employee counts
+      if (!empStats.has(ob.employeeId)) {
+        empStats.set(ob.employeeId, { total: 0, completed: 0 });
       }
-    }).filter(emp => emp.total > 0)
+      const stats = empStats.get(ob.employeeId);
+      stats.total++;
+      if (ob.attendance === 'completed') stats.completed++;
+    });
+
+    const byEmployee = employees
+      .map(emp => ({
+        ...emp,
+        total: empStats.get(emp.id)?.total || 0,
+        completed: empStats.get(emp.id)?.completed || 0
+      }))
+      .filter(emp => emp.total > 0);
 
     return {
-      totalSessions,
+      totalSessions: monthOnboardings.length,
       completed,
       pending,
       cancelled,
       rescheduled,
       noShow,
       byEmployee,
-      completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
+      completionRate: monthOnboardings.length > 0 ? Math.round((completed / monthOnboardings.length) * 100) : 0
     }
-  }, [onboardings, employees])
+  }, [onboardingsByMonth, employees])
 
   const monthlyStats = useMemo(() => {
     return getMonthlyCompletionStats(overviewDate)
@@ -733,12 +768,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />
