@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isCheckingSmtp, setIsCheckingSmtp] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -31,7 +33,17 @@ export default function EmailNotificationViewer() {
     loadNotifications();
   }, [loadNotifications]);
 
+  const checkSmtp = useCallback(async () => {
+    setIsCheckingSmtp(true);
+    setSmtpStatus(null);
+    const result = await EmailNotificationService.verifySmtpConnection();
+    setSmtpStatus(result);
+    setIsCheckingSmtp(false);
+    setTimeout(() => setSmtpStatus(null), 10000);
+  }, []);
+
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -66,10 +78,26 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.success ? (testEmailStatus.message === 'Attempting to send...' ? 'bg-blue-500' : 'bg-green-500') : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.success && testEmailStatus.message !== 'Attempting to send...' ? '✓ ' : testEmailStatus.success ? '⏳ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        {smtpStatus && (
+          <div className={`${smtpStatus.success ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-md text-xs border border-white/20`}>
+            <div className="font-bold mb-1">SMTP Status: {smtpStatus.success ? 'Connected' : 'Error'}</div>
+            <div>{smtpStatus.success ? smtpStatus.message : smtpStatus.error}</div>
+          </div>
+        )}
+
+        <button
+          onClick={checkSmtp}
+          disabled={isCheckingSmtp}
+          className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium transition-colors flex items-center gap-2 border border-white/10"
+          title="Check SMTP Connection"
+        >
+          {isCheckingSmtp ? '⏳' : '🔍'} Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -158,15 +186,29 @@ export default function EmailNotificationViewer() {
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
-                      </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
                         </div>
-                      )}
+                        {notification.tradeDetails && (
+                          <div className="text-[10px] text-white/30">
+                            Trade: {notification.tradeDetails.initiatorName} ↔ {notification.tradeDetails.respondentName}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] mb-1" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
+                        {notification.tradeDetails && (
+                           <div className="text-[9px] text-white/20">
+                             ID: {notification.tradeDetails.initiatorShiftDate}
+                           </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

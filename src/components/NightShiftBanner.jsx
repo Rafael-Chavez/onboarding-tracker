@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { supabase } from '../config/supabase';
 
-export default function NightShiftBanner() {
+const NightShiftBanner = () => {
   const [nightShiftData, setNightShiftData] = useState({ current: null, upcoming: [], weekLabel: '' });
 
   useEffect(() => {
@@ -152,3 +152,5 @@ export default function NightShiftBanner() {
     </div>
   )
 }
+
+export default memo(NightShiftBanner);
