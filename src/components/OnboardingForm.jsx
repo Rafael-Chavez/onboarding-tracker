@@ -1,33 +1,51 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleEmployeeChange = useCallback((e) => {
     setSelectedEmployee(e.target.value);
-  }, [setSelectedEmployee]);
+  }, []);
 
   const handleClientChange = useCallback((e) => {
     setClientName(e.target.value);
-  }, [setClientName]);
+  }, []);
 
   const handleAccountChange = useCallback((e) => {
     setAccountNumber(e.target.value);
-  }, [setAccountNumber]);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await addOnboarding({
+      employeeId: selectedEmployee,
+      clientName: clientName.trim(),
+      accountNumber: accountNumber.trim()
+    });
+
+    if (result && result.success) {
+      setClientName('');
+      setAccountNumber('');
+    }
+    setIsSubmitting(false);
+  }, [selectedEmployee, clientName, accountNumber, isSubmitting, addOnboarding]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
-      addOnboarding();
+      handleSubmit();
     }
-  }, [addOnboarding]);
+  }, [handleSubmit]);
 
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -84,11 +102,11 @@ const OnboardingForm = ({
         </div>
 
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleSubmit}
+          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-blue-500/25"
         >
-          Add Onboarding
+          {isSubmitting ? 'Adding...' : 'Add Onboarding'}
         </button>
       </div>
     </div>

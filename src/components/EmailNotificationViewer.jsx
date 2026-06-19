@@ -32,6 +32,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +42,24 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+    });
+
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSmtp = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Verifying SMTP connection...' });
+    const result = await EmailNotificationService.verifyConnection();
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection OK!' : `SMTP Error: ${result.message || result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -66,10 +82,17 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.isLoading ? 'bg-blue-500' : testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.isLoading ? '⏳ ' : testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSmtp}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -162,12 +185,32 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
-                        </div>
-                      )}
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+                        <div className="text-[10px] text-white/40 uppercase tracking-wider font-bold">SMTP Diagnostics</div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div>
+                            <span className="text-white/30 mr-1">Accepted:</span>
+                            <span className="text-green-400">{notification.details.accepted?.join(', ') || 'None'}</span>
+                          </div>
+                          <div>
+                            <span className="text-white/30 mr-1">Rejected:</span>
+                            <span className="text-red-400">{notification.details.rejected?.join(', ') || 'None'}</span>
+                          </div>
+                        </div>
+                        <div className="text-[9px] text-white/30 font-mono bg-black/30 p-1.5 rounded truncate" title={notification.details.response}>
+                          {notification.details.response}
+                        </div>
+                      </div>
+                    )}
+
+                    {notification.error && (
+                      <div className="mt-2 text-red-400 italic text-[10px] bg-red-500/10 p-2 rounded border border-red-500/20" title={notification.error}>
+                        Error: {notification.error}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

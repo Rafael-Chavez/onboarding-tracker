@@ -114,7 +114,10 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp
+              onboardings={onboardings}
+              subscribeToOnboardings={(callback) => SupabaseService.subscribeToOnboardings(callback)}
+            />
           </div>
         );
     }
