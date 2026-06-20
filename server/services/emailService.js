@@ -47,11 +47,41 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Email sent successfully:');
+      console.log('- MessageId:', info.messageId);
+      console.log('- Response:', info.response);
+      console.log('- Accepted:', info.accepted);
+      console.log('- Rejected:', info.rejected);
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        details: error
+      };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return { success: false, error: error.message };
     }
   }
 };

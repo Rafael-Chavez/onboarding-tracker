@@ -32,6 +32,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +46,16 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSmtpConnection = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Checking SMTP...' });
+    const result = await EmailNotificationService.verifySmtpConnection();
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? result.message : `Connection Failed: ${result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +82,13 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSmtpConnection}
+          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +176,42 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="text-[10px] bg-black/40 rounded p-2 border border-white/5">
+                          <div className="text-white/40 uppercase font-bold mb-1">SMTP Details:</div>
+                          <div className="grid grid-cols-1 gap-1 text-white/70">
+                            {notification.details.response && (
+                              <div className="flex gap-1">
+                                <span className="text-white/30">Resp:</span>
+                                <span className="truncate" title={notification.details.response}>{notification.details.response}</span>
+                              </div>
+                            )}
+                            {notification.details.accepted && notification.details.accepted.length > 0 && (
+                              <div className="flex gap-1">
+                                <span className="text-green-400/50">Accepted:</span>
+                                <span className="text-green-400/80">{notification.details.accepted.join(', ')}</span>
+                              </div>
+                            )}
+                            {notification.details.rejected && notification.details.rejected.length > 0 && (
+                              <div className="flex gap-1">
+                                <span className="text-red-400/50">Rejected:</span>
+                                <span className="text-red-400/80">{notification.details.rejected.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

@@ -14,6 +14,15 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Debug SMTP environment variables (avoid logging actual passwords)
+console.log('--- Email Configuration Debug ---');
+console.log('SMTP_HOST:', process.env.SMTP_HOST || 'smtp.gmail.com (default)');
+console.log('SMTP_PORT:', process.env.SMTP_PORT || '587 (default)');
+console.log('SMTP_USER:', process.env.SMTP_USER ? 'Configured' : 'MISSING');
+console.log('SMTP_PASS:', process.env.SMTP_PASS ? 'Configured' : 'MISSING');
+console.log('SMTP_SECURE:', process.env.SMTP_SECURE || 'false (default)');
+console.log('-------------------------------');
+
 // Make database pool available to routes
 app.set('db', pool);
 

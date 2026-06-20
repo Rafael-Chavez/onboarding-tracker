@@ -105,7 +105,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
@@ -180,7 +181,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
@@ -208,6 +210,26 @@ Generated: ${new Date().toLocaleString()}
       localStorage.setItem('admin_notifications', JSON.stringify(notifications.slice(0, 50)));
     } catch (error) {
       console.error('Error storing notification:', error);
+    }
+  },
+
+  /**
+   * Verify connection with SMTP server
+   */
+  async verifySmtpConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   },
 

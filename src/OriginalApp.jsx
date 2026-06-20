@@ -265,10 +265,26 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
+  // Optimized version using useMemo for caching and Map for O(1) lookups
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.date) {
+        if (!map.has(ob.date)) {
+          map.set(ob.date, [])
+        }
+        map.get(ob.date).push(ob)
+      }
+    })
+    return map
   }, [onboardings])
+
+  const getOnboardingsForDate = useCallback((date) => {
+    // Use ISO string but handle timezone by just getting the YYYY-MM-DD part correctly
+    // This matches how dates are stored in the database
+    const dateStr = date.toISOString().split('T')[0]
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -307,9 +323,23 @@ function App() {
     })
   }, [])
 
+  // Cache onboardings by month for faster stats calculation
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.month) {
+        if (!map.has(ob.month)) {
+          map.set(ob.month, [])
+        }
+        map.get(ob.month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
+
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -351,13 +381,15 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const monthOnboardings = onboardingsByMonth.get(currentMonth) || []
+
+    const thisMonth = monthOnboardings.length
+    const thisMonthCompleted = monthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }, [onboardings])
+  }, [onboardings.length, onboardingsByMonth])
 
   // Optimized version using useMemo for caching and Map for O(1) lookups
   const completedStatsCache = useMemo(() => {
