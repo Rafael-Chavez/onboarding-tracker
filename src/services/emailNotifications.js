@@ -31,9 +31,35 @@ export const EmailNotificationService = {
       if (!response.ok) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
       }
+
+      // Even if response is 200, check the success flag from our service
+      if (!data.success) {
+        return { success: false, error: data.error || 'Server reported failure but HTTP 200' };
+      }
+
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Internal method to verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
       return { success: false, error: error.message };
     }
   },

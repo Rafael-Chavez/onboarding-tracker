@@ -32,6 +32,7 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send...' });
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -41,9 +42,19 @@ export default function EmailNotificationViewer() {
     });
 
     setTestEmailStatus({ success: result.success, message: result.message });
+    if (!result.success && result.error) {
+       console.error('Email send failed:', result.error);
+    }
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSmtp = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Checking SMTP...' });
+    const result = await EmailNotificationService.verifyConnection();
+    setTestEmailStatus({ success: result.success, message: result.success ? 'SMTP OK' : `SMTP Error: ${result.error}` });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +81,13 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSmtp}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
