@@ -1,8 +1,25 @@
 import express from 'express';
 import { EmailService } from '../services/emailService.js';
-import { verifyToken } from '../middleware/auth.js';
+import { verifyToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+
+/**
+ * GET /api/email/verify
+ * Verifies SMTP connection
+ */
+router.get('/verify', verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await EmailService.verifyConnection();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 /**
  * POST /api/email/send
@@ -24,7 +41,12 @@ router.post('/send', verifyToken, async (req, res) => {
     });
 
     if (result.success) {
-      res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
+      res.json({
+        success: true,
+        message: 'Email sent successfully',
+        messageId: result.messageId,
+        details: result.details
+      });
     } else {
       res.status(500).json({ success: false, error: result.error });
     }

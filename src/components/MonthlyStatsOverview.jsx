@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-const MonthlyStatsOverview = ({
+const MonthlyStatsOverview = memo(({
   overviewDate,
   onNavigate,
   stats,
@@ -163,6 +163,6 @@ const MonthlyStatsOverview = ({
       </div>
     </div>
   );
-};
+});
 
-export default memo(MonthlyStatsOverview);
+export default MonthlyStatsOverview;

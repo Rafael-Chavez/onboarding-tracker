@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-const ScheduledOnboardingsList = ({
+const ScheduledOnboardingsList = memo(({
   selectedDate,
   formatSelectedDate,
   selectedDateOnboardings,
@@ -113,6 +113,6 @@ const ScheduledOnboardingsList = ({
       </div>
     </div>
   );
-};
+});
 
-export default memo(ScheduledOnboardingsList);
+export default ScheduledOnboardingsList;

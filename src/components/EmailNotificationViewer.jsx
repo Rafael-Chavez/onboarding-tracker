@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -41,9 +44,21 @@ export default function EmailNotificationViewer() {
     });
 
     setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setTimeout(() => setTestEmailStatus(null), 6000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySmtpConnection = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+    setIsVerifying(false);
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection Successful!' : `SMTP Failed: ${result.message}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 6000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +85,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySmtpConnection}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔌 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,15 +180,23 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
-                      </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
                         </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
+                      </div>
+
+                      {notification.tradeDetails && (
+                         <div className="mt-2 text-[10px] text-white/30 border-t border-white/5 pt-1">
+                           Trade: {notification.tradeDetails.initiatorName} ↔ {notification.tradeDetails.respondentName}
+                         </div>
                       )}
                     </div>
                   </div>
