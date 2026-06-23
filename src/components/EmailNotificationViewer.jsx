@@ -157,14 +157,31 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="mt-1 p-2 bg-black/40 rounded border border-white/5 overflow-hidden">
+                          <div className="text-[10px] text-white/40 uppercase mb-1">Backend Details</div>
+                          {notification.details.accepted && notification.details.accepted.length > 0 && (
+                            <div className="text-green-400 text-[10px]">✓ Accepted: {notification.details.accepted.join(', ')}</div>
+                          )}
+                          {notification.details.rejected && notification.details.rejected.length > 0 && (
+                            <div className="text-red-400 text-[10px]">✗ Rejected: {notification.details.rejected.join(', ')}</div>
+                          )}
+                          {notification.details.response && (
+                            <div className="text-white/60 text-[10px] font-mono mt-1 break-all">Resp: {notification.details.response}</div>
+                          )}
                         </div>
                       )}
                     </div>
