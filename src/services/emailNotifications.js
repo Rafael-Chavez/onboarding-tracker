@@ -28,12 +28,39 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+
+      // If the response is not ok, or if the data explicitly says success: false
+      if (!response.ok || data.success === false) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
+
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection status
+   */
+  async verifySMTP() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
       return { success: false, error: error.message };
     }
   },
