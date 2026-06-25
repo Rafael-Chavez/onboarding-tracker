@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: `Attempting to send to ${EmailNotificationService.ADMIN_EMAIL}...`, isPending: true });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +43,27 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    if (result.success) {
+      setTestEmailStatus({ success: true, message: `✓ Email sent to ${EmailNotificationService.ADMIN_EMAIL}` });
+    } else {
+      setTestEmailStatus({ success: false, message: `✗ Failed: ${result.error || 'Unknown error'}` });
+    }
+
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySMTP = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+    setIsVerifying(false);
+
+    if (result.success) {
+      alert('✅ SMTP Connection Successful!\n' + result.message);
+    } else {
+      alert('❌ SMTP Connection Failed\nError: ' + (result.error || 'Unknown error'));
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -66,10 +86,18 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${testEmailStatus.isPending ? 'bg-blue-500' : testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
+            {testEmailStatus.isPending ? '⌛ ' : testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +185,28 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="text-[10px] bg-black/30 rounded p-2 text-white/50 font-mono overflow-x-auto">
+                          <div className="flex justify-between border-b border-white/5 pb-1 mb-1">
+                            <span>Accepted: {notification.details.accepted?.length || 0}</span>
+                            <span>Rejected: {notification.details.rejected?.length || 0}</span>
+                          </div>
+                          <div className="truncate" title={notification.details.response}>
+                            Resp: {notification.details.response}
+                          </div>
                         </div>
                       )}
                     </div>
