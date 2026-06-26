@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { EmailService } from './services/emailService.js';
 import employeesRouter from './routes/employees.js';
 import onboardingsRouter from './routes/onboardings.js';
 import usersRouter from './routes/users.js';
@@ -78,6 +79,9 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
+  // Log email service status
+  EmailService.logConfigStatus();
+
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║   Onboarding Tracker API Server               ║

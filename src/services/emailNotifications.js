@@ -28,13 +28,40 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      // Handle both HTTP error status and logic errors within 200 OK
+      if (!response.ok || data.success === false) {
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
       return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection status
+   */
+  async verifySMTPConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      return {
+        success: response.ok && data.success,
+        message: data.message || data.error || (response.ok ? 'Verified' : 'Verification failed')
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   },
 
@@ -105,7 +132,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
@@ -180,7 +208,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
