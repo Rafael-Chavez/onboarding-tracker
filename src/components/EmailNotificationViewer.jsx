@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,10 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -41,9 +46,26 @@ export default function EmailNotificationViewer() {
     });
 
     setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setTimeout(() => setTestEmailStatus(null), 6000);
+    setIsSubmitting(false);
     loadNotifications();
-  }, [loadNotifications]);
+  }, [loadNotifications, isSubmitting]);
+
+  const checkSmtpConnection = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setTestEmailStatus({ success: true, message: 'Checking SMTP connection...' });
+
+    const result = await EmailNotificationService.verifyConnection();
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection Successful!' : `SMTP Error: ${result.message}`
+    });
+
+    setTimeout(() => setTestEmailStatus(null), 6000);
+    setIsSubmitting(false);
+  }, [isSubmitting]);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -72,10 +94,19 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={checkSmtpConnection}
+          disabled={isSubmitting}
+          className="bg-gradient-to-r from-gray-700 to-slate-700 hover:from-gray-800 hover:to-slate-800 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          🔍 Check SMTP
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={isSubmitting}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isSubmitting ? '⏳ Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
