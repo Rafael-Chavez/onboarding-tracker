@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings = [] }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +47,6 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -57,30 +56,6 @@ function App() {
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
   const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
-
-  const fetchOnboardings = useCallback(async () => {
-    const result = await SupabaseService.getAllOnboardings()
-    if (result.success) {
-      setOnboardings(result.onboardings)
-    } else {
-      console.error('Error loading onboardings:', result.error)
-    }
-  }, []);
-
-  // Load onboardings from Supabase on mount
-  useEffect(() => {
-    fetchOnboardings()
-
-    // Subscribe to real-time changes
-    const subscription = SupabaseService.subscribeToOnboardings((payload) => {
-      console.log('Real-time update detected:', payload)
-      fetchOnboardings()
-    })
-
-    return () => {
-      SupabaseService.unsubscribe(subscription)
-    }
-  }, [fetchOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -265,10 +240,21 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -398,10 +384,12 @@ function App() {
   const [employeeHistoryMonth, setEmployeeHistoryMonth] = useState(new Date())
 
   const navigateCompletedStatsMonth = useCallback((direction) => {
-    setCompletedStatsDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setCompletedStatsDate(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
   }, [])
 
@@ -437,10 +425,12 @@ function App() {
   }, [onboardings])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
-    setEmployeeHistoryMonth(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setEmployeeHistoryMonth(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
   }, [])
 
@@ -702,7 +692,11 @@ function App() {
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(date)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
