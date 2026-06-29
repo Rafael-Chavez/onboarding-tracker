@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +34,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +44,27 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Test email sent successfully' : `Failed: ${result.error}`
+    });
+
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySmtp = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const result = await EmailNotificationService.verifyConnection();
+      setSmtpStatus(result);
+    } catch (error) {
+      setSmtpStatus({ success: false, error: error.message });
+    } finally {
+      setIsVerifying(false);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +91,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySmtp}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -112,6 +141,39 @@ export default function EmailNotificationViewer() {
           </div>
 
           <div className="overflow-y-auto max-h-[500px] p-4">
+            {smtpStatus && (
+              <div className={`mb-6 p-4 rounded-lg border animate-fade-in ${smtpStatus.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-white font-bold text-sm">SMTP Connection Status</h4>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${smtpStatus.success ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {smtpStatus.success ? 'Connected' : 'Failed'}
+                  </span>
+                </div>
+
+                {!smtpStatus.success && (
+                  <div className="text-red-300 text-xs mb-3 font-mono bg-black/20 p-2 rounded">
+                    Error: {smtpStatus.error}
+                  </div>
+                )}
+
+                {smtpStatus.config && (
+                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="text-white/40 uppercase">Host: <span className="text-white/80 font-mono ml-1">{smtpStatus.config.host}:{smtpStatus.config.port}</span></div>
+                    <div className="text-white/40 uppercase">Secure: <span className="text-white/80 font-mono ml-1">{smtpStatus.config.secure ? 'Yes' : 'No'}</span></div>
+                    <div className="text-white/40 uppercase">User: <span className="text-white/80 font-mono ml-1">{smtpStatus.config.user}</span></div>
+                    <div className="text-white/40 uppercase">Auth: <span className="text-white/80 font-mono ml-1">{smtpStatus.config.hasPass ? 'Configured' : 'Missing Password'}</span></div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setSmtpStatus(null)}
+                  className="mt-3 text-white/40 hover:text-white/60 text-[10px] uppercase font-bold"
+                >
+                  Dismiss Status
+                </button>
+              </div>
+            )}
+
             {notifications.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-white/40 mb-2 text-4xl">📭</div>

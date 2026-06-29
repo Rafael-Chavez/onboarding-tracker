@@ -29,7 +29,11 @@ export const EmailNotificationService = {
 
       const data = await response.json();
       if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
@@ -220,6 +224,25 @@ Generated: ${new Date().toLocaleString()}
     } catch (error) {
       console.error('Error retrieving notifications:', error);
       return [];
+    }
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifyConnection() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+
+      const token = await user.getIdToken();
+      const response = await fetch(`${API_URL}/email/verify`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      return await response.json();
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   },
 

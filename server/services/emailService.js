@@ -18,6 +18,38 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection status
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+
+      // Return non-sensitive config info for debugging
+      return {
+        success: true,
+        config: {
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: process.env.SMTP_SECURE === 'true',
+          user: process.env.SMTP_USER ? `${process.env.SMTP_USER.split('@')[0]}@***` : 'Not set',
+          hasPass: !!process.env.SMTP_PASS
+        }
+      };
+    } catch (error) {
+      console.error('SMTP Connection verification failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        config: {
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: process.env.SMTP_SECURE === 'true'
+        }
+      };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -48,7 +80,15 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
