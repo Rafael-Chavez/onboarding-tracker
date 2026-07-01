@@ -157,14 +157,38 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.backendDetails && (
+                        <div className="bg-black/30 rounded p-2 text-[10px] space-y-1">
+                          <div className="text-white/40 uppercase font-bold text-[9px] tracking-wider mb-1 border-b border-white/5 pb-1">
+                            SMTP Diagnostic Info
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-white/40">Accepted:</span>
+                            <span className="text-green-400">{JSON.stringify(notification.backendDetails.accepted)}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-white/40">Rejected:</span>
+                            <span className={`font-bold ${notification.backendDetails.rejected?.length > 0 ? 'text-red-400' : 'text-white/60'}`}>
+                              {JSON.stringify(notification.backendDetails.rejected)}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-white/40">SMTP Response:</span>
+                            <span className="text-blue-300 italic">{notification.backendDetails.response}</span>
+                          </div>
                         </div>
                       )}
                     </div>
