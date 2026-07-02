@@ -18,6 +18,32 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Log non-sensitive SMTP configuration
+   */
+  logConfigStatus() {
+    console.log('--- SMTP Configuration Status ---');
+    console.log('Host:', process.env.SMTP_HOST || 'smtp.gmail.com');
+    console.log('Port:', process.env.SMTP_PORT || '587');
+    console.log('Secure:', process.env.SMTP_SECURE === 'true');
+    console.log('User:', process.env.SMTP_USER ? 'Configured (Value hidden)' : 'MISSING');
+    console.log('Pass:', process.env.SMTP_PASS ? 'Configured (Value hidden)' : 'MISSING');
+    console.log('---------------------------------');
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */

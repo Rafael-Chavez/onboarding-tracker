@@ -5,6 +5,9 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +35,9 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setIsSending(true);
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +46,24 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
+    setIsSending(false);
     setTestEmailStatus({ success: result.success, message: result.message });
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSmtpConnection = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+
+    const result = await EmailNotificationService.verifySmtp();
+
+    setIsVerifying(false);
+    setSmtpStatus(result);
+    if (result.success) {
+      setTimeout(() => setSmtpStatus(null), 5000);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -71,11 +91,26 @@ export default function EmailNotificationViewer() {
           </div>
         )}
 
+        {smtpStatus && (
+          <div className={`${smtpStatus.success ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm border border-white/20`}>
+            {smtpStatus.success ? '✅ ' : '❌ '} {smtpStatus.message || smtpStatus.error}
+          </div>
+        )}
+
+        <button
+          onClick={checkSmtpConnection}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
+        </button>
+
         <button
           onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          disabled={isSending}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          {isSending ? 'Sending...' : '📧 Send Test Email'}
         </button>
 
         <button

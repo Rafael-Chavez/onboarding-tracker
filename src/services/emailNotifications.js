@@ -28,12 +28,39 @@ export const EmailNotificationService = {
       });
 
       const data = await response.json();
-      if (!response.ok) {
+      if (!response.ok || data.success === false) {
         return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
       }
-      return data;
+      return { success: true, ...data };
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifySmtp() {
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User must be logged in');
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error('Failed to verify SMTP:', error);
       return { success: false, error: error.message };
     }
   },
