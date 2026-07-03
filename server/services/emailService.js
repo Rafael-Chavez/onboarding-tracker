@@ -48,10 +48,46 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Accepted recipients:', info.accepted);
+      if (info.rejected.length > 0) {
+        console.warn('Rejected recipients:', info.rejected);
+      }
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
+    }
+  },
+
+  /**
+   * Verify SMTP connection settings
+   */
+  async verifyConnection() {
+    const config = {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER ? 'Present (Hidden)' : 'Missing',
+      pass: process.env.SMTP_PASS ? 'Present (Hidden)' : 'Missing'
+    };
+
+    console.log('Verifying SMTP configuration:', config);
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully', config };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return { success: false, error: error.message, config };
     }
   }
 };

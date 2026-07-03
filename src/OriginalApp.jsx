@@ -265,14 +265,27 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
+  // Optimized lookup using Map for O(1) access
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, [])
+      }
+      map.get(ob.date).push(ob)
+    })
+    return map
   }, [onboardings])
 
+  const getOnboardingsForDate = useCallback((date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
+
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0]
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -307,43 +320,65 @@ function App() {
     })
   }, [])
 
-  const getMonthlyCompletionStats = useCallback((date) => {
-    const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+  // Optimized monthly stats using pre-calculated Map
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      const month = ob.month || (ob.date ? ob.date.slice(0, 7) : null)
+      if (month) {
+        if (!map.has(month)) {
+          map.set(month, [])
+        }
+        map.get(month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
 
-    const totalSessions = monthOnboardings.length
-    const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
-    const pending = monthOnboardings.filter(ob => ob.attendance === 'pending').length
-    const cancelled = monthOnboardings.filter(ob => ob.attendance === 'cancelled').length
-    const rescheduled = monthOnboardings.filter(ob => ob.attendance === 'rescheduled').length
-    const noShow = monthOnboardings.filter(ob => ob.attendance === 'no-show').length
+  const monthlyStats = useMemo(() => {
+    const monthStr = overviewDate.toISOString().slice(0, 7)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
-    // Group by employee
+    const stats = {
+      totalSessions: monthOnboardings.length,
+      completed: 0,
+      pending: 0,
+      cancelled: 0,
+      rescheduled: 0,
+      noShow: 0,
+      byEmployeeMap: new Map() // employeeId -> { total, completed }
+    }
+
+    monthOnboardings.forEach(ob => {
+      if (ob.attendance === 'completed') stats.completed++
+      else if (ob.attendance === 'pending') stats.pending++
+      else if (ob.attendance === 'cancelled') stats.cancelled++
+      else if (ob.attendance === 'rescheduled') stats.rescheduled++
+      else if (ob.attendance === 'no-show') stats.noShow++
+
+      if (!stats.byEmployeeMap.has(ob.employeeId)) {
+        stats.byEmployeeMap.set(ob.employeeId, { total: 0, completed: 0 })
+      }
+      const empStats = stats.byEmployeeMap.get(ob.employeeId)
+      empStats.total++
+      if (ob.attendance === 'completed') empStats.completed++
+    })
+
     const byEmployee = employees.map(emp => {
-      const empOnboardings = monthOnboardings.filter(ob => ob.employeeId === emp.id)
-      const empCompleted = empOnboardings.filter(ob => ob.attendance === 'completed').length
+      const empStats = stats.byEmployeeMap.get(emp.id) || { total: 0, completed: 0 }
       return {
         ...emp,
-        total: empOnboardings.length,
-        completed: empCompleted
+        total: empStats.total,
+        completed: empStats.completed
       }
     }).filter(emp => emp.total > 0)
 
     return {
-      totalSessions,
-      completed,
-      pending,
-      cancelled,
-      rescheduled,
-      noShow,
+      ...stats,
       byEmployee,
-      completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
+      completionRate: stats.totalSessions > 0 ? Math.round((stats.completed / stats.totalSessions) * 100) : 0
     }
-  }, [onboardings, employees])
-
-  const monthlyStats = useMemo(() => {
-    return getMonthlyCompletionStats(overviewDate)
-  }, [getMonthlyCompletionStats, overviewDate])
+  }, [onboardingsByMonth, overviewDate, employees])
 
   const getEmployeeColor = useCallback((employeeId) => {
     return employees.find(e => e.id === employeeId)?.color || 'from-gray-500 to-gray-600'

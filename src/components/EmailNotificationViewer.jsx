@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [smtpStatus, setSmtpStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +34,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ message: 'Attempting to send...', success: true });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +48,19 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setSmtpStatus(null);
+    try {
+      const result = await EmailNotificationService.verifySMTP();
+      setSmtpStatus(result);
+    } catch (error) {
+      setSmtpStatus({ success: false, error: error.message });
+    } finally {
+      setIsVerifying(false);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +87,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛' : '🔍'} Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -112,6 +137,30 @@ export default function EmailNotificationViewer() {
           </div>
 
           <div className="overflow-y-auto max-h-[500px] p-4">
+            {smtpStatus && (
+              <div className={`mb-6 p-4 rounded-lg border animate-fade-in ${smtpStatus.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className={`font-bold text-sm ${smtpStatus.success ? 'text-green-400' : 'text-red-400'}`}>
+                    SMTP Status: {smtpStatus.success ? 'Healthy' : 'Error'}
+                  </h4>
+                  <button onClick={() => setSmtpStatus(null)} className="text-white/40 hover:text-white">✕</button>
+                </div>
+                {smtpStatus.success ? (
+                  <p className="text-white/80 text-xs">{smtpStatus.message}</p>
+                ) : (
+                  <p className="text-red-300 text-xs font-mono">{smtpStatus.error}</p>
+                )}
+                {smtpStatus.config && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-mono bg-black/20 p-2 rounded">
+                    <div className="text-white/40">Host: <span className="text-white/80">{smtpStatus.config.host}</span></div>
+                    <div className="text-white/40">Port: <span className="text-white/80">{smtpStatus.config.port}</span></div>
+                    <div className="text-white/40">User: <span className={smtpStatus.config.user === 'Present (Hidden)' ? 'text-green-400' : 'text-red-400'}>{smtpStatus.config.user}</span></div>
+                    <div className="text-white/40">Pass: <span className={smtpStatus.config.pass === 'Present (Hidden)' ? 'text-green-400' : 'text-red-400'}>{smtpStatus.config.pass}</span></div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {notifications.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-white/40 mb-2 text-4xl">📭</div>
@@ -157,7 +206,7 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
@@ -168,6 +217,17 @@ export default function EmailNotificationViewer() {
                         </div>
                       )}
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 pt-2 border-t border-white/5 text-[10px] font-mono">
+                        <div className="text-white/40 mb-1 uppercase tracking-tighter font-bold">Diagnostic Info:</div>
+                        <div className="bg-black/20 p-2 rounded space-y-1">
+                          <div className="text-white/60">Accepted: <span className="text-green-400">{notification.details.accepted?.join(', ') || 'None'}</span></div>
+                          <div className="text-white/60">Rejected: <span className="text-red-400">{notification.details.rejected?.join(', ') || 'None'}</span></div>
+                          <div className="text-white/40 truncate" title={notification.details.response}>Response: {notification.details.response}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
