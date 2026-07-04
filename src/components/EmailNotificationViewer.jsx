@@ -32,6 +32,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +46,13 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setTestEmailStatus({ isLoading: true, message: 'Verifying SMTP connection...' });
+    const result = await EmailNotificationService.verifySMTP();
+    setTestEmailStatus({ success: result.success, message: result.message });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -66,10 +75,26 @@ export default function EmailNotificationViewer() {
       {/* Floating Button */}
       <div className="flex items-center gap-2">
         {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+          <div className={`${
+            testEmailStatus.isLoading ? 'bg-blue-500' :
+            testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'
+          } text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm flex items-center gap-2`}>
+            {testEmailStatus.isLoading ? (
+              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : testEmailStatus.success ? '✓ ' : '✗ '}
+            {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTP}
+          className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors border border-white/20 flex items-center gap-2"
+        >
+          🔍 Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +182,25 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="text-[10px] bg-black/30 rounded p-2 text-white/50 font-mono">
+                          <div className="text-white/70 mb-1 border-b border-white/10 pb-1">Diagnostic Info:</div>
+                          <div>Accepted: {JSON.stringify(notification.details.accepted)}</div>
+                          <div>Rejected: {JSON.stringify(notification.details.rejected)}</div>
+                          <div className="truncate">Response: {notification.details.response}</div>
                         </div>
                       )}
                     </div>

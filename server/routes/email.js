@@ -34,4 +34,21 @@ router.post('/send', verifyToken, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/email/verify
+ * Verifies SMTP connection
+ */
+router.get('/verify', verifyToken, async (req, res) => {
+  try {
+    const result = await EmailService.verifyConnection();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

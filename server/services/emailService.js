@@ -48,10 +48,59 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
-      return { success: false, error: `Nodemailer error: ${error.message}` };
+      return {
+        success: false,
+        error: `Nodemailer error: ${error.message}`,
+        code: error.code,
+        command: error.command
+      };
     }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'SMTP credentials not configured'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection is healthy' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        code: error.code
+      };
+    }
+  },
+
+  /**
+   * Log configuration status (without sensitive data)
+   */
+  logConfigStatus() {
+    console.log('📧 Email Service Configuration:');
+    console.log(`   Host: ${process.env.SMTP_HOST || 'smtp.gmail.com'}`);
+    console.log(`   Port: ${process.env.SMTP_PORT || '587'}`);
+    console.log(`   Secure: ${process.env.SMTP_SECURE === 'true'}`);
+    console.log(`   User: ${process.env.SMTP_USER ? '✓ Configured' : '✗ Missing'}`);
+    console.log(`   Pass: ${process.env.SMTP_PASS ? '✓ Configured' : '✗ Missing'}`);
   }
 };

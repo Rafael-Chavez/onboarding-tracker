@@ -1,33 +1,37 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
-  const handleEmployeeChange = useCallback((e) => {
-    setSelectedEmployee(e.target.value);
-  }, [setSelectedEmployee]);
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleClientChange = useCallback((e) => {
-    setClientName(e.target.value);
-  }, [setClientName]);
+  const handleSubmit = useCallback(async () => {
+    if (!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting) return;
 
-  const handleAccountChange = useCallback((e) => {
-    setAccountNumber(e.target.value);
-  }, [setAccountNumber]);
+    setIsSubmitting(true);
+    const result = await addOnboarding({
+      employeeId: selectedEmployee,
+      clientName: clientName.trim(),
+      accountNumber: accountNumber.trim()
+    });
+
+    if (result?.success) {
+      setClientName('');
+      setAccountNumber('');
+    }
+    setIsSubmitting(false);
+  }, [selectedEmployee, clientName, accountNumber, addOnboarding, isSubmitting]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
-      addOnboarding();
+      handleSubmit();
     }
-  }, [addOnboarding]);
+  }, [handleSubmit]);
 
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -48,7 +52,7 @@ const OnboardingForm = ({
           <label className="text-white text-sm font-medium mb-2 block">Employee</label>
           <select
             value={selectedEmployee}
-            onChange={handleEmployeeChange}
+            onChange={(e) => setSelectedEmployee(e.target.value)}
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
           >
             <option value="" className="text-gray-800">Select Employee</option>
@@ -65,7 +69,7 @@ const OnboardingForm = ({
           <input
             type="text"
             value={clientName}
-            onChange={handleClientChange}
+            onChange={(e) => setClientName(e.target.value)}
             placeholder="Enter client name..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
           />
@@ -76,7 +80,7 @@ const OnboardingForm = ({
           <input
             type="text"
             value={accountNumber}
-            onChange={handleAccountChange}
+            onChange={(e) => setAccountNumber(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Enter account number..."
             className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
@@ -84,11 +88,11 @@ const OnboardingForm = ({
         </div>
 
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleSubmit}
+          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-blue-500/25"
         >
-          Add Onboarding
+          {isSubmitting ? 'Adding...' : 'Add Onboarding'}
         </button>
       </div>
     </div>
