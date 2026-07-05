@@ -48,10 +48,51 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
+    }
+  },
+
+  /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Verification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Log current SMTP configuration (safely)
+   */
+  logConfigStatus() {
+    const config = {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: process.env.SMTP_PORT || '587',
+      secure: process.env.SMTP_SECURE === 'true',
+      user: process.env.SMTP_USER ? 'Configured' : 'MISSING',
+      pass: process.env.SMTP_PASS ? 'Configured' : 'MISSING',
+    };
+
+    console.log('📧 Email Service Configuration:');
+    console.table(config);
+
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.warn('⚠️ WARNING: SMTP credentials are not fully configured. Email sending will fail.');
     }
   }
 };

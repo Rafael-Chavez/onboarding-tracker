@@ -29,11 +29,46 @@ export const EmailNotificationService = {
 
       const data = await response.json();
       if (!response.ok) {
-        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+        return {
+          success: false,
+          error: data.error || data.message || `HTTP ${response.status}`,
+          details: data.details
+        };
       }
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection health
+   */
+  async verifySMTP() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify SMTP');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+      return {
+        success: response.ok && data.success,
+        message: data.message || data.error || 'Verification completed',
+        error: response.ok ? null : (data.error || `HTTP ${response.status}`)
+      };
+    } catch (error) {
+      console.error('SMTP verification failed:', error);
       return { success: false, error: error.message };
     }
   },
@@ -105,7 +140,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
@@ -180,7 +216,8 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
