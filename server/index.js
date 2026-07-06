@@ -7,6 +7,7 @@ import usersRouter from './routes/users.js';
 import shiftsRouter from './routes/shifts.js';
 import tradesRouter from './routes/trades.js';
 import emailRouter from './routes/email.js';
+import { EmailService } from './services/emailService.js';
 import pool from './config/database.js';
 
 dotenv.config();
@@ -85,6 +86,9 @@ app.listen(PORT, () => {
 ║   Environment: ${process.env.NODE_ENV || 'development'}                   ║
 ╚════════════════════════════════════════════════╝
   `);
+
+  // Log Email Service configuration status
+  EmailService.logConfigStatus();
 });
 
 // Graceful shutdown

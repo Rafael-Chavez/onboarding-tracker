@@ -5,6 +5,8 @@ const ADMIN_EMAIL = 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
+  ADMIN_EMAIL,
+
   /**
    * Internal method to send email via backend API
    */
@@ -34,6 +36,36 @@ export const EmailNotificationService = {
       return data;
     } catch (error) {
       console.error('Failed to send email via backend:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Verify SMTP connection via backend
+   */
+  async verifySMTP() {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('User must be logged in to verify SMTP');
+      }
+
+      const token = await user.getIdToken();
+
+      const response = await fetch(`${API_URL}/email/verify`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+      }
+      return data;
+    } catch (error) {
+      console.error('Failed to verify SMTP:', error);
       return { success: false, error: error.message };
     }
   },
@@ -94,6 +126,9 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.details) {
+        console.log('%cDetails:', 'font-weight: bold;', result.details);
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
@@ -105,14 +140,16 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
-        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending email notification:', error);
@@ -170,6 +207,9 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.details) {
+        console.log('%cDetails:', 'font-weight: bold;', result.details);
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
@@ -180,13 +220,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        details: result.details
       });
 
       return {
         success: result.success,
         error: result.success ? null : result.error,
-        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
+        message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`,
+        details: result.details
       };
     } catch (error) {
       console.error('Error sending override notification:', error);

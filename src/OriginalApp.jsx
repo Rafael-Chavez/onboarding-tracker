@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings: propOnboardings }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +47,9 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [internalOnboardings, setInternalOnboardings] = useState([])
+  const onboardings = propOnboardings || internalOnboardings;
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [clientName, setClientName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -58,17 +60,28 @@ function App() {
   const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
+  const handleSetSelectedDate = useCallback((date) => {
+    startTransition(() => {
+      setSelectedDate(date)
+    })
+  }, [])
+
   const fetchOnboardings = useCallback(async () => {
+    // Only fetch if not provided via props
+    if (propOnboardings) return;
+
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setInternalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [propOnboardings]);
 
-  // Load onboardings from Supabase on mount
+  // Load onboardings from Supabase on mount (only if not provided via props)
   useEffect(() => {
+    if (propOnboardings) return;
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -80,7 +93,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, propOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -265,10 +278,34 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Optimization: Pre-index onboardings by date for O(1) lookup
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (!map.has(ob.date)) {
+        map.set(ob.date, []);
+      }
+      map.get(ob.date).push(ob);
+    });
+    return map;
+  }, [onboardings]);
+
+  // Optimization: Pre-index onboardings by month for O(1) lookup
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map();
+    onboardings.forEach(ob => {
+      if (!map.has(ob.month)) {
+        map.set(ob.month, []);
+      }
+      map.get(ob.month).push(ob);
+    });
+    return map;
+  }, [onboardings]);
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || [];
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -309,7 +346,7 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || [];
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -339,7 +376,7 @@ function App() {
       byEmployee,
       completionRate: totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0
     }
-  }, [onboardings, employees])
+  }, [onboardingsByMonth, employees])
 
   const monthlyStats = useMemo(() => {
     return getMonthlyCompletionStats(overviewDate)
@@ -351,13 +388,15 @@ function App() {
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7)
-    const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
-    const thisMonthCompleted = onboardings.filter(ob =>
-      ob.month === currentMonth && ob.attendance === 'completed'
+    const thisMonthOnboardings = onboardingsByMonth.get(currentMonth) || [];
+
+    const thisMonth = thisMonthOnboardings.length
+    const thisMonthCompleted = thisMonthOnboardings.filter(ob =>
+      ob.attendance === 'completed'
     ).length
     const total = onboardings.length
     return { thisMonth, thisMonthCompleted, total }
-  }, [onboardings])
+  }, [onboardings, onboardingsByMonth])
 
   // Optimized version using useMemo for caching and Map for O(1) lookups
   const completedStatsCache = useMemo(() => {
@@ -702,7 +741,7 @@ function App() {
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                        onClick={() => handleSetSelectedDate(date)}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
