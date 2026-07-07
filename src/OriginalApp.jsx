@@ -48,9 +48,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -87,7 +84,9 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber } = formData;
+
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -110,10 +109,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -141,6 +136,7 @@ function App() {
         }
 
         // Real-time subscription will update the UI automatically
+        return { success: true };
       } else {
         setSyncStatus({
           isLoading: false,
@@ -148,9 +144,11 @@ function App() {
           type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        return { success: false, error: result.error };
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+    return { success: false, error: 'Missing required fields' };
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -265,14 +263,37 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Pre-index onboardings by date and month for O(1) lookups
+  const { onboardingsByDate, onboardingsByMonth } = useMemo(() => {
+    const dateMap = new Map();
+    const monthMap = new Map();
+
+    onboardings.forEach(ob => {
+      // Index by date
+      if (ob.date) {
+        if (!dateMap.has(ob.date)) dateMap.set(ob.date, []);
+        dateMap.get(ob.date).push(ob);
+      }
+
+      // Index by month
+      if (ob.month) {
+        if (!monthMap.has(ob.month)) monthMap.set(ob.month, []);
+        monthMap.get(ob.month).push(ob);
+      }
+    });
+
+    return { onboardingsByDate: dateMap, onboardingsByMonth: monthMap };
+  }, [onboardings]);
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0]
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -309,7 +330,7 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length
@@ -566,6 +587,12 @@ function App() {
     return onboardings.filter(ob => ob.attendance === 'pending_approval')
   }, [onboardings])
 
+  const handleSelectDate = useCallback((date) => {
+    startTransition(() => {
+      setSelectedDate(date);
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
       <style>{`
@@ -702,7 +729,7 @@ function App() {
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => handleSelectDate(date)}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
@@ -733,12 +760,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />

@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +43,27 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+    });
+
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySMTP = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection OK!' : `SMTP Error: ${result.error}`
+    });
+
+    setIsVerifying(false);
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +90,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={verifySMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
