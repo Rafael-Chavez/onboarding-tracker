@@ -1,33 +1,52 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 
 const OnboardingForm = ({
   selectedDate,
-  selectedEmployee,
-  setSelectedEmployee,
-  clientName,
-  setClientName,
-  accountNumber,
-  setAccountNumber,
   employees,
   addOnboarding
 }) => {
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleEmployeeChange = useCallback((e) => {
     setSelectedEmployee(e.target.value);
-  }, [setSelectedEmployee]);
+  }, []);
 
   const handleClientChange = useCallback((e) => {
     setClientName(e.target.value);
-  }, [setClientName]);
+  }, []);
 
   const handleAccountChange = useCallback((e) => {
     setAccountNumber(e.target.value);
-  }, [setAccountNumber]);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await addOnboarding({
+      employeeId: selectedEmployee,
+      clientName: clientName.trim(),
+      accountNumber: accountNumber.trim()
+    });
+
+    if (result && result.success) {
+      setClientName('');
+      setAccountNumber('');
+      // Keep selected employee for convenience if adding multiple for same person
+    }
+    setIsSubmitting(false);
+  }, [selectedEmployee, clientName, accountNumber, addOnboarding, isSubmitting]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
-      addOnboarding();
+      handleSubmit();
     }
-  }, [addOnboarding]);
+  }, [handleSubmit]);
 
   return (
     <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 p-6 shadow-2xl">
@@ -49,7 +68,8 @@ const OnboardingForm = ({
           <select
             value={selectedEmployee}
             onChange={handleEmployeeChange}
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            disabled={isSubmitting}
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           >
             <option value="" className="text-gray-800">Select Employee</option>
             {employees.map(employee => (
@@ -66,8 +86,9 @@ const OnboardingForm = ({
             type="text"
             value={clientName}
             onChange={handleClientChange}
+            disabled={isSubmitting}
             placeholder="Enter client name..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           />
         </div>
 
@@ -78,17 +99,18 @@ const OnboardingForm = ({
             value={accountNumber}
             onChange={handleAccountChange}
             onKeyDown={handleKeyDown}
+            disabled={isSubmitting}
             placeholder="Enter account number..."
-            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors"
+            className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-colors disabled:opacity-50"
           />
         </div>
 
         <button
-          onClick={addOnboarding}
-          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim()}
+          onClick={handleSubmit}
+          disabled={!selectedEmployee || !clientName.trim() || !accountNumber.trim() || isSubmitting}
           className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg hover:shadow-blue-500/25"
         >
-          Add Onboarding
+          {isSubmitting ? 'Adding...' : 'Add Onboarding'}
         </button>
       </div>
     </div>

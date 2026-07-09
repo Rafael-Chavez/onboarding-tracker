@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +47,18 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+    setIsVerifying(false);
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection Successful!' : `SMTP Error: ${result.error}`
+    });
+    setTimeout(() => setTestEmailStatus(null), 5000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +85,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? 'Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +180,36 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="text-[10px] bg-black/40 rounded p-2 border border-white/5">
+                          <div className="text-white/40 mb-1 uppercase font-bold tracking-tighter">Delivery Details</div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-white/30">Accepted:</span>
+                              <span className="text-green-400 font-mono">{notification.details.accepted?.length || 0}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-white/30">Rejected:</span>
+                              <span className="text-red-400 font-mono">{notification.details.rejected?.length || 0}</span>
+                            </div>
+                            <div className="col-span-2 flex items-start gap-1">
+                              <span className="text-white/30 whitespace-nowrap">SMTP Response:</span>
+                              <span className="text-blue-300 font-mono break-all">{notification.details.response}</span>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
