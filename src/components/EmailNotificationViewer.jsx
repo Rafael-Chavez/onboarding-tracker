@@ -5,6 +5,8 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,18 +34,45 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
-    const result = await EmailNotificationService.notifyShiftTrade({
-      initiatorName: 'Marc',
-      respondentName: 'Jim',
-      initiatorShiftDate: '2026-04-13',
-      respondentShiftDate: '2026-04-20',
-      status: 'accepted'
-    });
+    setIsSending(true);
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
-    loadNotifications();
+    try {
+      const result = await EmailNotificationService.notifyShiftTrade({
+        initiatorName: 'Marc',
+        respondentName: 'Jim',
+        initiatorShiftDate: '2026-04-13',
+        respondentShiftDate: '2026-04-20',
+        status: 'accepted'
+      });
+
+      setTestEmailStatus({ success: result.success, message: result.message });
+      loadNotifications();
+    } catch (error) {
+      setTestEmailStatus({ success: false, message: `Error: ${error.message}` });
+    } finally {
+      setIsSending(false);
+      setTimeout(() => setTestEmailStatus(null), 5000);
+    }
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setTestEmailStatus({ success: true, message: 'Verifying SMTP connection...' });
+
+    try {
+      const result = await EmailNotificationService.verifySMTP();
+      setTestEmailStatus({
+        success: result.success,
+        message: result.success ? 'SMTP Connection Successful!' : `SMTP Connection Failed: ${result.error}`
+      });
+    } catch (error) {
+      setTestEmailStatus({ success: false, message: `Verification Error: ${error.message}` });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setTestEmailStatus(null), 5000);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -72,10 +101,19 @@ export default function EmailNotificationViewer() {
         )}
 
         <button
-          onClick={sendTestEmail}
-          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
         >
-          📧 Send Test Email
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
+
+        <button
+          onClick={sendTestEmail}
+          disabled={isSending}
+          className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isSending ? '⌛ Sending...' : '📧 Send Test Email'}
         </button>
 
         <button
