@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ type: 'info', message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +43,30 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setTestEmailStatus({
+      success: result.success,
+      message: result.message || (result.success ? 'Email sent successfully' : 'Failed to send email'),
+      details: result.details
+    });
+
+    setTimeout(() => setTestEmailStatus(null), 8000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const verifySMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setTestEmailStatus({ type: 'info', message: 'Verifying SMTP connection...' });
+
+    const result = await EmailNotificationService.verifySMTP();
+
+    setTestEmailStatus({
+      success: result.success,
+      message: result.success ? 'SMTP Connection Successful!' : `SMTP Connection Failed: ${result.error}`
+    });
+
+    setIsVerifying(false);
+    setTimeout(() => setTestEmailStatus(null), 8000);
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -63,13 +86,39 @@ export default function EmailNotificationViewer() {
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
-      <div className="flex items-center gap-2">
-        {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+      {/* Floating Status Indicator */}
+      {testEmailStatus && (
+        <div className={`absolute bottom-16 right-0 w-80 p-4 rounded-xl shadow-2xl animate-fade-in border backdrop-blur-md ${
+          testEmailStatus.type === 'info' ? 'bg-blue-900/90 border-blue-500/50 text-blue-100' :
+          testEmailStatus.success ? 'bg-green-900/90 border-green-500/50 text-green-100' :
+          'bg-red-900/90 border-red-500/50 text-red-100'
+        }`}>
+          <div className="flex items-center gap-2 mb-2 font-bold">
+            {testEmailStatus.type === 'info' ? 'ℹ️' : testEmailStatus.success ? '✅' : '❌'}
+            {testEmailStatus.type === 'info' ? 'Status' : testEmailStatus.success ? 'Success' : 'Error'}
           </div>
-        )}
+          <div className="text-sm opacity-90">{testEmailStatus.message}</div>
+
+          {testEmailStatus.details && (
+            <div className="mt-2 pt-2 border-t border-white/10 text-[10px] font-mono overflow-hidden">
+              <div className="text-white/50 mb-1">SMTP Details:</div>
+              <div className="truncate">Response: {testEmailStatus.details.response}</div>
+              <div>Accepted: {testEmailStatus.details.accepted?.length || 0}</div>
+              <div>Rejected: {testEmailStatus.details.rejected?.length || 0}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Floating Buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={verifySMTP}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⏳ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
