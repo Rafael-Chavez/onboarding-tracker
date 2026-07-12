@@ -5,6 +5,7 @@ export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setTestEmailStatus({ success: true, message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -44,6 +47,18 @@ export default function EmailNotificationViewer() {
     setTimeout(() => setTestEmailStatus(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTPStatus = useCallback(async () => {
+    setIsVerifying(true);
+    const result = await EmailNotificationService.verifySMTP();
+    setIsVerifying(false);
+
+    if (result.success) {
+      alert(`SMTP Connection Successful!\n\nHost: ${result.config.host}\nUser: ${result.config.user}\nSecure: ${result.config.secure}`);
+    } else {
+      alert(`SMTP Connection Failed:\n\n${result.error || 'Unknown error'}`);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -70,6 +85,14 @@ export default function EmailNotificationViewer() {
             {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
           </div>
         )}
+
+        <button
+          onClick={checkSMTPStatus}
+          disabled={isVerifying}
+          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          {isVerifying ? '⌛ Checking...' : '🔍 Check SMTP'}
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -157,14 +180,28 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/40">To:</span>
-                        <span className="text-cyan-300 font-mono">{notification.to}</span>
+                    <div className="flex flex-col gap-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/40">To:</span>
+                          <span className="text-cyan-300 font-mono">{notification.to}</span>
+                        </div>
+                        {notification.error && (
+                          <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
+                            {notification.error}
+                          </div>
+                        )}
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
+
+                      {notification.details && (
+                        <div className="mt-1 pt-1 border-t border-white/5 flex flex-wrap gap-2 text-[10px]">
+                          <span className="text-white/40">Accepted: <span className="text-green-400">{notification.details.accepted?.length || 0}</span></span>
+                          <span className="text-white/40">Rejected: <span className="text-red-400">{notification.details.rejected?.length || 0}</span></span>
+                          {notification.details.response && (
+                            <span className="text-white/30 truncate max-w-full" title={notification.details.response}>
+                              Res: {notification.details.response}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>

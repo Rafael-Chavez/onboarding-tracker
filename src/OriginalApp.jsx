@@ -265,10 +265,37 @@ function App() {
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
   }, [])
 
+  // Optimized version using useMemo for caching and Map for O(1) lookups by date/month
+  const onboardingsByDate = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.date) {
+        if (!map.has(ob.date)) {
+          map.set(ob.date, [])
+        }
+        map.get(ob.date).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
+
+  const onboardingsByMonth = useMemo(() => {
+    const map = new Map()
+    onboardings.forEach(ob => {
+      if (ob.month) {
+        if (!map.has(ob.month)) {
+          map.set(ob.month, [])
+        }
+        map.get(ob.month).push(ob)
+      }
+    })
+    return map
+  }, [onboardings])
+
   const getOnboardingsForDate = useCallback((date) => {
     const dateStr = date.toISOString().split('T')[0]
-    return onboardings.filter(ob => ob.date === dateStr)
-  }, [onboardings])
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
@@ -309,7 +336,7 @@ function App() {
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
-    const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
+    const monthOnboardings = onboardingsByMonth.get(monthStr) || []
 
     const totalSessions = monthOnboardings.length
     const completed = monthOnboardings.filter(ob => ob.attendance === 'completed').length

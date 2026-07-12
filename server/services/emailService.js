@@ -18,6 +18,30 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Verify SMTP connection
+   */
+  async verifyConnection() {
+    try {
+      console.log('Testing SMTP connection...');
+      await transporter.verify();
+      console.log('SMTP connection successful!');
+      return {
+        success: true,
+        config: {
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          user: process.env.SMTP_USER ? 'Present' : 'Missing',
+          pass: process.env.SMTP_PASS ? 'Present' : 'Missing',
+          secure: process.env.SMTP_SECURE === 'true'
+        }
+      };
+    } catch (error) {
+      console.error('SMTP verification failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -35,7 +59,7 @@ export const EmailService = {
       try {
         await transporter.verify();
       } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
+        console.error('SMTP Connection verification failed before send:', verifyError);
         return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
       }
 
@@ -47,8 +71,22 @@ export const EmailService = {
         html,
       });
 
-      console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('Message sent successfully:', {
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+        response: info.response
+      });
+
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
