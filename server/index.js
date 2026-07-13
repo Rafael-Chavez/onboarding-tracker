@@ -8,6 +8,7 @@ import shiftsRouter from './routes/shifts.js';
 import tradesRouter from './routes/trades.js';
 import emailRouter from './routes/email.js';
 import pool from './config/database.js';
+import { EmailService } from './services/emailService.js';
 
 dotenv.config();
 
@@ -78,6 +79,9 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
+  // Log email service status on startup
+  EmailService.logConfigStatus();
+
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║   Onboarding Tracker API Server               ║

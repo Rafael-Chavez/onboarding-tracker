@@ -26,7 +26,12 @@ router.post('/send', verifyToken, async (req, res) => {
     if (result.success) {
       res.json({ success: true, message: 'Email sent successfully', messageId: result.messageId });
     } else {
-      res.status(500).json({ success: false, error: result.error });
+      // Include error details for the frontend to display
+      res.status(500).json({
+        success: false,
+        error: result.error,
+        details: 'Check server logs for SMTP configuration status.'
+      });
     }
   } catch (error) {
     console.error('Email route error:', error);

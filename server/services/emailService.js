@@ -18,6 +18,19 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Log configuration status (without sensitive data)
+   */
+  logConfigStatus() {
+    console.log('--- Email Service Configuration ---');
+    console.log('SMTP Host:', process.env.SMTP_HOST || 'smtp.gmail.com (default)');
+    console.log('SMTP Port:', process.env.SMTP_PORT || '587 (default)');
+    console.log('SMTP Secure:', process.env.SMTP_SECURE || 'false (default)');
+    console.log('SMTP User:', process.env.SMTP_USER ? 'Configured (not shown)' : 'MISSING');
+    console.log('SMTP Pass:', process.env.SMTP_PASS ? 'Configured (not shown)' : 'MISSING');
+    console.log('------------------------------------');
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
