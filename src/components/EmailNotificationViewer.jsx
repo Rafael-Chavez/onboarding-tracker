@@ -4,7 +4,8 @@ import { EmailNotificationService } from '../services/emailNotifications';
 export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
   const [showViewer, setShowViewer] = useState(false);
-  const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadNotifications = useCallback(() => {
     const allNotifications = EmailNotificationService.getNotifications();
@@ -32,6 +33,8 @@ export default function EmailNotificationViewer() {
   }, [loadNotifications]);
 
   const sendTestEmail = useCallback(async () => {
+    setStatusMessage({ type: 'info', message: 'Attempting to send test email...' });
+
     const result = await EmailNotificationService.notifyShiftTrade({
       initiatorName: 'Marc',
       respondentName: 'Jim',
@@ -40,10 +43,32 @@ export default function EmailNotificationViewer() {
       status: 'accepted'
     });
 
-    setTestEmailStatus({ success: result.success, message: result.message });
-    setTimeout(() => setTestEmailStatus(null), 5000);
+    setStatusMessage({
+      type: result.success ? 'success' : 'error',
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+    });
+
+    setTimeout(() => setStatusMessage(null), 5000);
     loadNotifications();
   }, [loadNotifications]);
+
+  const checkSMTP = useCallback(async () => {
+    setIsVerifying(true);
+    setStatusMessage({ type: 'info', message: 'Checking SMTP connection...' });
+
+    try {
+      const result = await EmailNotificationService.verifySMTP();
+      setStatusMessage({
+        type: result.success ? 'success' : 'error',
+        message: result.success ? 'SMTP Connection OK!' : `SMTP Error: ${result.error}`
+      });
+    } catch (error) {
+      setStatusMessage({ type: 'error', message: `Verification failed: ${error.message}` });
+    } finally {
+      setIsVerifying(false);
+      setTimeout(() => setStatusMessage(null), 5000);
+    }
+  }, []);
 
   const clearAllNotifications = useCallback(() => {
     if (window.confirm('Clear all email notifications?')) {
@@ -62,14 +87,31 @@ export default function EmailNotificationViewer() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Floating Button */}
-      <div className="flex items-center gap-2">
-        {testEmailStatus && (
-          <div className={`${testEmailStatus.success ? 'bg-green-500' : 'bg-red-500'} text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-xs text-sm`}>
-            {testEmailStatus.success ? '✓ ' : '✗ '} {testEmailStatus.message}
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      {/* Status Toasts */}
+      {statusMessage && (
+        <div className={`
+          ${statusMessage.type === 'success' ? 'bg-green-500' :
+            statusMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}
+          text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
+        `}>
+          <div className="flex items-center gap-2">
+            {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
+            <span>{statusMessage.message}</span>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Floating Buttons */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={checkSMTP}
+          disabled={isVerifying}
+          className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 border border-white/10"
+          title="Verify SMTP Backend Configuration"
+        >
+          {isVerifying ? '⌛' : '🔍'} Check SMTP
+        </button>
 
         <button
           onClick={sendTestEmail}
@@ -93,12 +135,12 @@ export default function EmailNotificationViewer() {
 
       {/* Notification Viewer Panel */}
       {showViewer && (
-        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden">
-          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+        <div className="absolute bottom-16 right-0 w-[500px] max-h-[600px] bg-gradient-to-br from-purple-900/95 to-pink-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-purple-500/30 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between shrink-0">
             <div>
               <h3 className="text-white font-bold text-lg">Email Notification Log</h3>
               <p className="text-white/60 text-xs">
-                Emails sent to {EmailNotificationService.ADMIN_EMAIL || 'rchavez@deconetwork.com'}
+                Log of automated and test emails
               </p>
             </div>
             {notifications.length > 0 && (
@@ -111,7 +153,7 @@ export default function EmailNotificationViewer() {
             )}
           </div>
 
-          <div className="overflow-y-auto max-h-[500px] p-4">
+          <div className="overflow-y-auto p-4 flex-1">
             {notifications.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-white/40 mb-2 text-4xl">📭</div>
@@ -162,12 +204,12 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
-                      {notification.error && (
-                        <div className="text-red-400 italic text-[10px] truncate max-w-[200px]" title={notification.error}>
-                          {notification.error}
-                        </div>
-                      )}
                     </div>
+                    {notification.error && (
+                      <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
+                        Error: {notification.error}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

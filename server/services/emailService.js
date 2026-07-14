@@ -18,6 +18,41 @@ const transporter = nodemailer.createTransport({
 
 export const EmailService = {
   /**
+   * Log current SMTP configuration (omitting sensitive details)
+   */
+  logConfigStatus() {
+    console.log('📧 Email Service Config Status:');
+    console.log(`  - Host: ${process.env.SMTP_HOST || 'smtp.gmail.com'}`);
+    console.log(`  - Port: ${process.env.SMTP_PORT || '587'}`);
+    console.log(`  - Secure: ${process.env.SMTP_SECURE === 'true'}`);
+    console.log(`  - User present: ${!!process.env.SMTP_USER}`);
+    console.log(`  - Pass present: ${!!process.env.SMTP_PASS}`);
+  },
+
+  /**
+   * Verify SMTP connection health
+   */
+  async verifyConnection() {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      return {
+        success: false,
+        error: 'SMTP credentials missing (SMTP_USER/SMTP_PASS)'
+      };
+    }
+
+    try {
+      await transporter.verify();
+      return { success: true, message: 'SMTP connection verified successfully' };
+    } catch (error) {
+      console.error('SMTP Verification Error:', error);
+      return {
+        success: false,
+        error: `SMTP Verification failed: ${error.message}`
+      };
+    }
+  },
+
+  /**
    * Send an email
    * @param {Object} options - Email options (to, subject, text, html)
    */
@@ -32,11 +67,9 @@ export const EmailService = {
 
     try {
       // Verify connection before sending
-      try {
-        await transporter.verify();
-      } catch (verifyError) {
-        console.error('SMTP Connection verification failed:', verifyError);
-        return { success: false, error: `SMTP Connection failed: ${verifyError.message}` };
+      const verify = await this.verifyConnection();
+      if (!verify.success) {
+        return verify;
       }
 
       const info = await transporter.sendMail({
@@ -48,7 +81,15 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
-      return { success: true, messageId: info.messageId };
+      return {
+        success: true,
+        messageId: info.messageId,
+        details: {
+          accepted: info.accepted,
+          rejected: info.rejected,
+          response: info.response
+        }
+      };
     } catch (error) {
       console.error('Error sending email:', error);
       return { success: false, error: `Nodemailer error: ${error.message}` };
