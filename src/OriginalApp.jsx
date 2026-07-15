@@ -18,7 +18,13 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({
+  onboardings: externalOnboardings,
+  approveCompletion: externalApproveCompletion,
+  rejectCompletion: externalRejectCompletion
+}) {
+  const isManaged = !!externalOnboardings;
+
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +53,9 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [localOnboardings, setLocalOnboardings] = useState([])
+  const onboardings = isManaged ? externalOnboardings : localOnboardings
+  const setOnboardings = isManaged ? () => {} : setLocalOnboardings
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -64,8 +72,10 @@ function App() {
     }
   }, []);
 
-  // Load onboardings from Supabase on mount
+  // Load onboardings from Supabase on mount (only if not managed by parent)
   useEffect(() => {
+    if (isManaged) return
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -77,7 +87,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, isManaged])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -161,6 +171,10 @@ function App() {
   }, [])
 
   const approveCompletion = useCallback(async (id) => {
+    if (isManaged && externalApproveCompletion) {
+      return externalApproveCompletion(id)
+    }
+
     setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
 
     const result = await SupabaseService.approveCompletion(id)
@@ -189,9 +203,13 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }, [autoSync])
+  }, [autoSync, isManaged, externalApproveCompletion])
 
   const rejectCompletion = useCallback(async (id) => {
+    if (isManaged && externalRejectCompletion) {
+      return externalRejectCompletion(id)
+    }
+
     setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
 
     const result = await SupabaseService.rejectCompletion(id)
@@ -220,7 +238,7 @@ function App() {
       })
       setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 3000)
     }
-  }, [autoSync])
+  }, [autoSync, isManaged, externalRejectCompletion])
 
   const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
     // Update in Supabase
@@ -272,14 +290,14 @@ function App() {
     return map
   }, [onboardings])
 
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+  const getOnboardingsForDateStr = useCallback((dateStr) => {
     return onboardingsByDate.get(dateStr) || []
   }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = selectedDate.toISOString().split('T')[0]
+    return getOnboardingsForDateStr(dateStr)
+  }, [getOnboardingsForDateStr, selectedDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -418,7 +436,7 @@ function App() {
     startTransition(() => {
       setSelectedEmployeeHistory(employeeId)
     })
-  }, [startTransition])
+  }, [])
 
   const handleSetEmployeeHistoryViewMode = useCallback((mode) => {
     startTransition(() => {
@@ -585,10 +603,6 @@ function App() {
     }
   }, [onboardings])
 
-  const pendingApprovals = useMemo(() => {
-    return onboardings.filter(ob => ob.attendance === 'pending_approval')
-  }, [onboardings])
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
       <style>{`
@@ -606,12 +620,6 @@ function App() {
       {/* Night Shift Tracker */}
       <NightShiftBanner />
 
-      {/* Pending Completion Approvals Alert */}
-      <PendingApprovalsAlert
-        pendingApprovals={pendingApprovals}
-        onApprove={approveCompletion}
-        onReject={rejectCompletion}
-      />
 
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
@@ -722,14 +730,19 @@ function App() {
                 {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
                   const day = i + 1
                   const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
+                  const dateStr = date.toISOString().split('T')[0]
+                  const dayOnboardings = getOnboardingsForDateStr(dateStr)
                   const isToday = date.toDateString() === new Date().toDateString()
                   const isSelected = date.toDateString() === selectedDate.toDateString()
 
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(date)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}

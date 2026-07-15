@@ -55,6 +55,7 @@ export default function AdminDashboard() {
     };
   }, [fetchOnboardings, debouncedFetchOnboardings]);
 
+
   const pendingApprovals = useMemo(() => {
     return onboardings.filter(ob => ob.attendance === 'pending_approval');
   }, [onboardings]);
@@ -114,7 +115,11 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp
+              onboardings={onboardings}
+              approveCompletion={approveCompletion}
+              rejectCompletion={rejectCompletion}
+            />
           </div>
         );
     }
