@@ -105,6 +105,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
@@ -180,6 +181,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        details: result.details,
         error: result.success ? null : result.error
       });
 

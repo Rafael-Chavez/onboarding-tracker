@@ -81,6 +81,11 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+      console.log('Accepted recipients:', info.accepted);
+      if (info.rejected.length > 0) {
+        console.warn('Rejected recipients:', info.rejected);
+      }
+
       return {
         success: true,
         messageId: info.messageId,

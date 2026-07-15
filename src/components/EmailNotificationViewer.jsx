@@ -205,6 +205,36 @@ export default function EmailNotificationViewer() {
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 space-y-1">
+                        <div className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">SMTP Details</div>
+                        <div className="bg-black/30 rounded p-2 text-[10px] font-mono space-y-1 border border-white/5">
+                          <div className="flex items-start gap-2">
+                            <span className="text-green-400 shrink-0">Accepted:</span>
+                            <span className="text-white/70 break-all">
+                              {Array.isArray(notification.details.accepted)
+                                ? notification.details.accepted.join(', ') || 'None'
+                                : notification.details.accepted || 'None'}
+                            </span>
+                          </div>
+                          {notification.details.rejected && notification.details.rejected.length > 0 && (
+                            <div className="flex items-start gap-2 text-red-400">
+                              <span className="shrink-0">Rejected:</span>
+                              <span className="break-all">
+                                {Array.isArray(notification.details.rejected)
+                                  ? notification.details.rejected.join(', ')
+                                  : notification.details.rejected}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-start gap-2 border-t border-white/5 pt-1 mt-1">
+                            <span className="text-blue-400 shrink-0">Response:</span>
+                            <span className="text-white/50 italic break-all">{notification.details.response}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}
