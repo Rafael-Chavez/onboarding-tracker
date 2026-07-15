@@ -94,7 +94,40 @@ export default function NightShiftBanner() {
   const { current, upcoming, weekLabel } = nightShiftData;
 
   if (!current) {
-    return null; // Don't render if data hasn't loaded yet
+    return (
+      <div className="backdrop-blur-md bg-white/10 rounded-2xl border border-white/20 shadow-2xl overflow-hidden mb-6 animate-pulse">
+        <div className="flex flex-col sm:flex-row items-stretch min-h-[138px]">
+          {/* Left skeleton */}
+          <div className="flex-1 bg-white/5 p-5 flex flex-col justify-center">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-2 h-2 bg-white/20 rounded-full" />
+              <div className="h-3 w-32 bg-white/20 rounded" />
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-white/20 shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-3 w-20 bg-white/20 rounded" />
+                <div className="h-5 w-36 bg-white/20 rounded" />
+              </div>
+            </div>
+          </div>
+          {/* Right skeleton */}
+          <div className="sm:w-56 bg-white/5 border-t sm:border-t-0 sm:border-l border-white/10 p-4 flex flex-col justify-center space-y-3">
+            <div className="h-3 w-16 bg-white/20 rounded" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-white/20 shrink-0" />
+                <div className="h-3 w-24 bg-white/20 rounded" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-white/20 shrink-0" />
+                <div className="h-3 w-24 bg-white/20 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

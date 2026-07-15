@@ -398,12 +398,36 @@ function App() {
   const [employeeHistoryMonth, setEmployeeHistoryMonth] = useState(new Date())
 
   const navigateCompletedStatsMonth = useCallback((direction) => {
-    setCompletedStatsDate(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
+    startTransition(() => {
+      setCompletedStatsDate(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
     })
-  }, [])
+  }, [startTransition])
+
+  const handleSelectEmployeeHistory = useCallback((employeeId) => {
+    startTransition(() => {
+      setSelectedEmployeeHistory(employeeId)
+    })
+  }, [startTransition])
+
+  const handleSetEmployeeHistoryViewMode = useCallback((mode) => {
+    startTransition(() => {
+      setEmployeeHistoryViewMode(mode)
+    })
+  }, [startTransition])
+
+  const navigateEmployeeHistoryMonth = useCallback((direction) => {
+    startTransition(() => {
+      setEmployeeHistoryMonth(prev => {
+        const newDate = new Date(prev)
+        newDate.setMonth(prev.getMonth() + direction)
+        return newDate
+      })
+    })
+  }, [startTransition])
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
@@ -435,14 +459,6 @@ function App() {
       })
       .sort((a, b) => b.dateObj - a.dateObj) // Sort by date descending
   }, [onboardings])
-
-  const navigateEmployeeHistoryMonth = useCallback((direction) => {
-    setEmployeeHistoryMonth(prev => {
-      const newDate = new Date(prev)
-      newDate.setMonth(prev.getMonth() + direction)
-      return newDate
-    })
-  }, [])
 
   const testSheetsConnection = useCallback(async () => {
     setSyncStatus({ isLoading: true, message: 'Testing Google Sheets connection...', type: '' })
@@ -593,7 +609,11 @@ function App() {
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
         <button
-          onClick={() => setShowAllCompleted(!showAllCompleted)}
+          onClick={() => {
+            startTransition(() => {
+              setShowAllCompleted(!showAllCompleted)
+            })
+          }}
           className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-2xl font-bold text-lg hover:from-green-600 hover:to-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-400/50 transition-colors shadow-2xl hover:shadow-green-500/25"
         >
           {showAllCompleted ? 'Hide' : 'Show'} Completed Stats
@@ -604,11 +624,11 @@ function App() {
       <div className={isPending ? 'opacity-70 pointer-events-none transition-opacity' : 'transition-opacity'}>
       <EmployeeHistoryModal
         selectedEmployeeHistory={selectedEmployeeHistory}
-        setSelectedEmployeeHistory={setSelectedEmployeeHistory}
+        setSelectedEmployeeHistory={handleSelectEmployeeHistory}
         employees={employees}
         getEmployeeSessions={getEmployeeSessions}
         employeeHistoryViewMode={employeeHistoryViewMode}
-        setEmployeeHistoryViewMode={setEmployeeHistoryViewMode}
+        setEmployeeHistoryViewMode={handleSetEmployeeHistoryViewMode}
         employeeHistoryMonth={employeeHistoryMonth}
         navigateEmployeeHistoryMonth={navigateEmployeeHistoryMonth}
         formatDateForDisplay={formatDateForDisplay}
@@ -621,7 +641,7 @@ function App() {
           navigateCompletedStatsMonth={navigateCompletedStatsMonth}
           formatDateForDisplay={formatDateForDisplay}
           getAllCompletedStats={getAllCompletedStats}
-          setSelectedEmployeeHistory={setSelectedEmployeeHistory}
+          setSelectedEmployeeHistory={handleSelectEmployeeHistory}
         />
       )}
 
@@ -636,7 +656,7 @@ function App() {
               onNavigate={navigateOverviewMonth}
               stats={monthlyStats}
               formatDateForDisplay={formatDateForDisplay}
-              onEmployeeClick={setSelectedEmployeeHistory}
+              onEmployeeClick={handleSelectEmployeeHistory}
             />
 
             {/* Scheduled Onboardings for Selected Date */}
