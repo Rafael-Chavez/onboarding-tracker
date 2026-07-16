@@ -18,14 +18,24 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
-  const [employees] = useState([
+function App({
+  onboardings: externalOnboardings,
+  addOnboarding: externalAddOnboarding,
+  deleteOnboarding: externalDeleteOnboarding,
+  approveCompletion: externalApproveCompletion,
+  rejectCompletion: externalRejectCompletion,
+  updateOnboardingAttendance: externalUpdateOnboardingAttendance,
+  employees: externalEmployees
+}) {
+  const [internalEmployees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
     { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
   ])
+
+  const employees = externalEmployees || internalEmployees
   
   // Load data from localStorage
   const loadFromStorage = useCallback((key, defaultValue) => {
@@ -47,7 +57,8 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [internalOnboardings, setInternalOnboardings] = useState([])
+  const onboardings = externalOnboardings || internalOnboardings
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -56,16 +67,18 @@ function App() {
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
+    if (externalOnboardings) return;
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setInternalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalOnboardings]);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
+    if (externalOnboardings) return;
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -77,7 +90,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -85,6 +98,7 @@ function App() {
   }, [autoSync, saveToStorage])
 
   const addOnboarding = useCallback(async (formData) => {
+    if (externalAddOnboarding) return externalAddOnboarding({ ...formData, date: selectedDate });
     const { employeeId, clientName, accountNumber } = formData;
 
     if (employeeId && clientName.trim() && accountNumber.trim()) {
@@ -148,6 +162,7 @@ function App() {
   }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
+    if (externalDeleteOnboarding) return externalDeleteOnboarding(id);
     const result = await SupabaseService.deleteOnboarding(id)
     if (!result.success) {
       console.error('Error deleting onboarding:', result.error)
@@ -161,6 +176,7 @@ function App() {
   }, [])
 
   const approveCompletion = useCallback(async (id) => {
+    if (externalApproveCompletion) return externalApproveCompletion(id);
     setSyncStatus({ isLoading: true, message: 'Approving completion...', type: '' })
 
     const result = await SupabaseService.approveCompletion(id)
@@ -192,6 +208,7 @@ function App() {
   }, [autoSync])
 
   const rejectCompletion = useCallback(async (id) => {
+    if (externalRejectCompletion) return externalRejectCompletion(id);
     setSyncStatus({ isLoading: true, message: 'Rejecting completion...', type: '' })
 
     const result = await SupabaseService.rejectCompletion(id)
@@ -223,6 +240,7 @@ function App() {
   }, [autoSync])
 
   const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
+    if (externalUpdateOnboardingAttendance) return externalUpdateOnboardingAttendance(id, newAttendance);
     // Update in Supabase
     const result = await SupabaseService.updateOnboardingStatus(id, newAttendance)
 
@@ -251,15 +269,6 @@ function App() {
     }
   }, [autoSync])
 
-  // Calendar helper functions
-  const getDaysInMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [])
-
-  const getFirstDayOfMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }, [])
-
   // Index onboardings by date for O(1) calendar lookups
   const onboardingsByDate = useMemo(() => {
     const map = new Map()
@@ -272,8 +281,37 @@ function App() {
     return map
   }, [onboardings])
 
+  // Calendar helper functions
+  const calendarData = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const firstDayOfMonth = new Date(year, month, 1).getDay()
+
+    const days = []
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(year, month, i)
+      const dateStr = date.toISOString().split('T')[0]
+      days.push({
+        day: i,
+        date,
+        dateStr,
+        isToday: date.toDateString() === new Date().toDateString(),
+        onboardings: onboardingsByDate.get(dateStr) || []
+      })
+    }
+
+    return { days, firstDayOfMonth }
+  }, [currentDate, onboardingsByDate])
+
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    // Avoid creating new Date/ISO string if possible
+    let dateStr;
+    if (typeof date === 'string') {
+      dateStr = date;
+    } else {
+      dateStr = date.toISOString().split('T')[0];
+    }
     return onboardingsByDate.get(dateStr) || []
   }, [onboardingsByDate])
 
@@ -601,17 +639,19 @@ function App() {
         }
       `}</style>
       {/* Header */}
-      <DashboardHeader stats={stats} syncStatus={syncStatus} />
+      {!externalOnboardings && <DashboardHeader stats={stats} syncStatus={syncStatus} />}
 
       {/* Night Shift Tracker */}
-      <NightShiftBanner />
+      {!externalOnboardings && <NightShiftBanner />}
 
       {/* Pending Completion Approvals Alert */}
-      <PendingApprovalsAlert
-        pendingApprovals={pendingApprovals}
-        onApprove={approveCompletion}
-        onReject={rejectCompletion}
-      />
+      {!externalOnboardings && (
+        <PendingApprovalsAlert
+          pendingApprovals={pendingApprovals}
+          onApprove={approveCompletion}
+          onReject={rejectCompletion}
+        />
+      )}
 
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
@@ -716,20 +756,20 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                {Array.from({ length: calendarData.firstDayOfMonth }, (_, i) => (
                   <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
                 ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
+                {calendarData.days.map(({ day, date, dateStr, isToday, onboardings: dayOnboardings }) => {
                   const isSelected = date.toDateString() === selectedDate.toDateString()
 
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(date)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
