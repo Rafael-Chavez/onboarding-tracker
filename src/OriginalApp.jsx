@@ -48,9 +48,6 @@ function App() {
   }, [])
 
   const [onboardings, setOnboardings] = useState([])
-  const [selectedEmployee, setSelectedEmployee] = useState('')
-  const [clientName, setClientName] = useState('')
-  const [accountNumber, setAccountNumber] = useState('')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -87,7 +84,9 @@ function App() {
     saveToStorage('autoSync', autoSync)
   }, [autoSync, saveToStorage])
 
-  const addOnboarding = useCallback(async () => {
+  const addOnboarding = useCallback(async (formData) => {
+    const { selectedEmployee, clientName, accountNumber } = formData
+
     if (selectedEmployee && clientName.trim() && accountNumber.trim()) {
       // Find existing onboardings for this client to determine session number
       const clientOnboardings = onboardings.filter(ob =>
@@ -110,10 +109,6 @@ function App() {
       const result = await SupabaseService.createOnboarding(newOnboarding)
 
       if (result.success) {
-        // Clear form
-        setClientName('')
-        setAccountNumber('')
-
         // Auto-sync to Google Sheets if enabled
         if (autoSync) {
           setSyncStatus({ isLoading: true, message: 'Auto-syncing to Google Sheets...', type: '' })
@@ -141,6 +136,7 @@ function App() {
         }
 
         // Real-time subscription will update the UI automatically
+        return { success: true }
       } else {
         setSyncStatus({
           isLoading: false,
@@ -148,9 +144,11 @@ function App() {
           type: 'error'
         })
         setTimeout(() => setSyncStatus({ isLoading: false, message: '', type: '' }), 4000)
+        return { success: false, error: result.error }
       }
     }
-  }, [selectedEmployee, clientName, accountNumber, onboardings, employees, selectedDate, autoSync])
+    return { success: false, error: 'Missing fields' }
+  }, [onboardings, employees, selectedDate, autoSync])
 
   const deleteOnboarding = useCallback(async (id) => {
     const result = await SupabaseService.deleteOnboarding(id)
@@ -753,12 +751,6 @@ function App() {
           <div className="xl:col-span-3 space-y-6">
             <OnboardingForm
               selectedDate={selectedDate}
-              selectedEmployee={selectedEmployee}
-              setSelectedEmployee={setSelectedEmployee}
-              clientName={clientName}
-              setClientName={setClientName}
-              accountNumber={accountNumber}
-              setAccountNumber={setAccountNumber}
               employees={employees}
               addOnboarding={addOnboarding}
             />
