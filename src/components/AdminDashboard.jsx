@@ -61,16 +61,56 @@ export default function AdminDashboard() {
 
   const approveCompletion = useCallback(async (id) => {
     const result = await SupabaseService.approveCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
-    }
+    return result;
   }, []);
 
   const rejectCompletion = useCallback(async (id) => {
     const result = await SupabaseService.rejectCompletion(id);
-    if (result.success) {
-      // Real-time subscription will update the UI
+    return result;
+  }, []);
+
+  const addOnboarding = useCallback(async (formData) => {
+    const { employeeId, clientName, accountNumber, date } = formData;
+    const employees = [
+      { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
+      { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
+      { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
+      { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
+      { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
+    ];
+
+    if (employeeId && clientName.trim() && accountNumber.trim()) {
+      const clientOnboardings = onboardings.filter(ob =>
+        ob.clientName.toLowerCase() === clientName.trim().toLowerCase()
+      );
+      const sessionNumber = clientOnboardings.length + 1;
+      const dateStr = date instanceof Date ? date.toISOString().split('T')[0] : (date || new Date().toISOString().split('T')[0]);
+
+      const newOnboarding = {
+        employeeId: parseInt(employeeId),
+        employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
+        clientName: clientName.trim(),
+        accountNumber: accountNumber.trim(),
+        sessionNumber,
+        attendance: 'pending',
+        date: dateStr,
+        month: dateStr.slice(0, 7)
+      };
+
+      const result = await SupabaseService.createOnboarding(newOnboarding);
+      return result;
     }
+    return { success: false, error: 'Missing required fields' };
+  }, [onboardings]);
+
+  const deleteOnboarding = useCallback(async (id) => {
+    const result = await SupabaseService.deleteOnboarding(id);
+    return result;
+  }, []);
+
+  const updateOnboardingAttendance = useCallback(async (id, newAttendance) => {
+    const result = await SupabaseService.updateOnboardingStatus(id, newAttendance);
+    return result;
   }, []);
 
   const renderContent = () => {
@@ -114,7 +154,14 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp
+              onboardings={onboardings}
+              addOnboarding={addOnboarding}
+              deleteOnboarding={deleteOnboarding}
+              approveCompletion={approveCompletion}
+              rejectCompletion={rejectCompletion}
+              updateOnboardingAttendance={updateOnboardingAttendance}
+            />
           </div>
         );
     }

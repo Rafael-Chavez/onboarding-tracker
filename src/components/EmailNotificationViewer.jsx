@@ -205,6 +205,20 @@ export default function EmailNotificationViewer() {
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
                     </div>
+
+                    {notification.details && (
+                      <div className="mt-2 text-[10px] bg-black/30 rounded p-2 border border-white/5">
+                        <div className="text-white/40 uppercase tracking-tighter font-bold mb-1">SMTP Diagnostics</div>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                          <span className="text-white/30">Accepted:</span>
+                          <span className="text-green-400 truncate">{notification.details.accepted?.join(', ') || 'None'}</span>
+                          <span className="text-white/30">Rejected:</span>
+                          <span className="text-red-400 truncate">{notification.details.rejected?.join(', ') || 'None'}</span>
+                          <span className="text-white/30">Response:</span>
+                          <span className="text-white/60 truncate" title={notification.details.response}>{notification.details.response}</span>
+                        </div>
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}
