@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App() {
+function App({ onboardings: externalOnboardings }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -47,7 +47,8 @@ function App() {
     }
   }, [])
 
-  const [onboardings, setOnboardings] = useState([])
+  const [localOnboardings, setLocalOnboardings] = useState([])
+  const onboardings = externalOnboardings || localOnboardings
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
@@ -56,16 +57,19 @@ function App() {
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
+    if (externalOnboardings) return
     const result = await SupabaseService.getAllOnboardings()
     if (result.success) {
-      setOnboardings(result.onboardings)
+      setLocalOnboardings(result.onboardings)
     } else {
       console.error('Error loading onboardings:', result.error)
     }
-  }, []);
+  }, [externalOnboardings]);
 
   // Load onboardings from Supabase on mount
   useEffect(() => {
+    if (externalOnboardings) return
+
     fetchOnboardings()
 
     // Subscribe to real-time changes
@@ -77,7 +81,7 @@ function App() {
     return () => {
       SupabaseService.unsubscribe(subscription)
     }
-  }, [fetchOnboardings])
+  }, [fetchOnboardings, externalOnboardings])
 
   // Save autoSync setting to localStorage whenever it changes
   useEffect(() => {
@@ -281,6 +285,44 @@ function App() {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
 
+  const calendarData = useMemo(() => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const todayStr = new Date().toDateString()
+    const selectedDateStr = selectedDate.toDateString()
+
+    const emptyDays = Array.from({ length: firstDay }, (_, i) => ({
+      key: `empty-${i}`,
+      isEmpty: true
+    }))
+
+    const days = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1
+      const year = currentDate.getFullYear()
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+      const dayStr = String(day).padStart(2, '0')
+      const dateStr = `${year}-${month}-${dayStr}`
+
+      const dateObj = new Date(year, currentDate.getMonth(), day)
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateObj.toDateString() === todayStr
+      const isSelected = dateObj.toDateString() === selectedDateStr
+
+      return {
+        key: `day-${day}`,
+        isEmpty: false,
+        day,
+        dateObj,
+        dateStr,
+        dayOnboardings,
+        isToday,
+        isSelected
+      }
+    })
+
+    return [...emptyDays, ...days]
+  }, [currentDate, selectedDate, onboardingsByDate, getDaysInMonth, getFirstDayOfMonth])
+
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
   }, [])
@@ -302,7 +344,7 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const navigateOverviewMonth = useCallback((direction) => {
     startTransition(() => {
@@ -312,7 +354,7 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
@@ -716,20 +758,21 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
+                {calendarData.map(item => {
+                  if (item.isEmpty) {
+                    return <div key={item.key} className="h-24 min-h-[6rem]"></div>
+                  }
+
+                  const { day, dateObj, dayOnboardings, isToday, isSelected } = item
 
                   return (
                     <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
+                      key={item.key}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(dateObj)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
