@@ -45,10 +45,11 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.previewUrl
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 10000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -95,9 +96,21 @@ export default function EmailNotificationViewer() {
             statusMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}
           text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
         `}>
-          <div className="flex items-center gap-2">
-            {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
-            <span>{statusMessage.message}</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 font-medium">
+              {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
+              <span>{statusMessage.message}</span>
+            </div>
+            {statusMessage.previewUrl && (
+              <a
+                href={statusMessage.previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-cyan-100 hover:text-white underline font-semibold ml-6 animate-pulse"
+              >
+                View Sent Email ↗
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -199,12 +212,31 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs mt-1">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 hover:text-cyan-300 font-semibold underline"
+                        >
+                          View Sent Email ↗
+                        </a>
+                      )}
                     </div>
+                    {notification.details && (
+                      <div className="mt-2 text-white/50 bg-black/20 p-2 rounded text-[10px] font-mono break-all border border-white/5 space-y-0.5">
+                        <div>Accepted: {JSON.stringify(notification.details.accepted)}</div>
+                        {notification.details.rejected && notification.details.rejected.length > 0 && (
+                          <div className="text-red-400">Rejected: {JSON.stringify(notification.details.rejected)}</div>
+                        )}
+                        <div className="text-[9px] opacity-75">Response: {notification.details.response}</div>
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}
