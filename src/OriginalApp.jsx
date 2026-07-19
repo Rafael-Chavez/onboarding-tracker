@@ -18,6 +18,14 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
+// Helper to format local date consistently without UTC shifts
+const getLocalDateString = (date) => {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function App() {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
@@ -94,6 +102,9 @@ function App() {
       )
       const sessionNumber = clientOnboardings.length + 1
 
+      const dateStr = getLocalDateString(selectedDate)
+      const monthStr = dateStr.slice(0, 7)
+
       const newOnboarding = {
         employeeId: parseInt(employeeId),
         employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
@@ -101,8 +112,8 @@ function App() {
         accountNumber: accountNumber.trim(),
         sessionNumber,
         attendance: 'pending',
-        date: selectedDate.toISOString().split('T')[0],
-        month: selectedDate.toISOString().slice(0, 7)
+        date: dateStr,
+        month: monthStr
       }
 
       // Save to Supabase
@@ -272,14 +283,40 @@ function App() {
     return map
   }, [onboardings])
 
-  const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
-    return onboardingsByDate.get(dateStr) || []
-  }, [onboardingsByDate])
-
   const selectedDateOnboardings = useMemo(() => {
-    return getOnboardingsForDate(selectedDate)
-  }, [getOnboardingsForDate, selectedDate])
+    const dateStr = getLocalDateString(selectedDate)
+    return onboardingsByDate.get(dateStr) || []
+  }, [onboardingsByDate, selectedDate])
+
+  // Pre-calculate calendar grid days to optimize INP during rendering
+  const calendarData = useMemo(() => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+
+    const todayStr = getLocalDateString(new Date())
+    const selectedDateStr = getLocalDateString(selectedDate)
+
+    const days = []
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day)
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateStr === todayStr
+      const isSelected = dateStr === selectedDateStr
+
+      days.push({
+        day,
+        date,
+        dayOnboardings,
+        isToday,
+        isSelected
+      })
+    }
+    return { firstDay, days }
+  }, [currentDate, selectedDate, onboardingsByDate, getDaysInMonth, getFirstDayOfMonth])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -315,7 +352,7 @@ function App() {
   }, [])
 
   const getMonthlyCompletionStats = useCallback((date) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
     const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
 
     const totalSessions = monthOnboardings.length
@@ -357,7 +394,8 @@ function App() {
   }, [employees])
 
   const stats = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
+    const today = new Date()
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
     const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
     const thisMonthCompleted = onboardings.filter(ob =>
       ob.month === currentMonth && ob.attendance === 'completed'
@@ -385,7 +423,7 @@ function App() {
   }, [onboardings])
 
   const getAllCompletedStats = useCallback((date = new Date()) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
     const monthMap = completedStatsCache.get(monthStr)
 
     if (!monthMap) return []
@@ -438,7 +476,9 @@ function App() {
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
-    const monthStr = viewMode === 'monthly' && monthDate ? monthDate.toISOString().slice(0, 7) : null
+    const monthStr = viewMode === 'monthly' && monthDate
+      ? `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
+      : null
 
     // Single pass filter with combined conditions
     const filtered = onboardings.filter(ob => {
@@ -716,16 +756,10 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                {Array.from({ length: calendarData.firstDay }, (_, i) => (
                   <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
                 ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
+                {calendarData.days.map(({ day, date, dayOnboardings, isToday, isSelected }) => {
                   return (
                     <div
                       key={day}
