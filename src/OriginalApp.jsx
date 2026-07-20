@@ -251,6 +251,14 @@ function App() {
     }
   }, [autoSync])
 
+  // Format local year, month, and day as 'YYYY-MM-DD' string
+  const formatLocalDateString = useCallback((date) => {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }, [])
+
   // Calendar helper functions
   const getDaysInMonth = useCallback((date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -273,13 +281,53 @@ function App() {
   }, [onboardings])
 
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = formatLocalDateString(date)
     return onboardingsByDate.get(dateStr) || []
-  }, [onboardingsByDate])
+  }, [onboardingsByDate, formatLocalDateString])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
+
+  // Pre-calculate calendar data to avoid expensive Date formatting in render loop
+  const calendarData = useMemo(() => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const todayStr = formatLocalDateString(new Date())
+    const selectedStr = formatLocalDateString(selectedDate)
+
+    const emptyDays = Array.from({ length: firstDay }, (_, i) => ({
+      key: `empty-${i}`,
+      isEmpty: true
+    }))
+
+    const activeDays = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+      const dateStr = formatLocalDateString(date)
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateStr === todayStr
+      const isSelected = dateStr === selectedStr
+
+      return {
+        key: `day-${day}`,
+        day,
+        date,
+        dayOnboardings,
+        isToday,
+        isSelected,
+        isEmpty: false
+      }
+    })
+
+    return [...emptyDays, ...activeDays]
+  }, [currentDate, selectedDate, onboardingsByDate, getDaysInMonth, getFirstDayOfMonth, formatLocalDateString])
+
+  const handleSelectDate = useCallback((date) => {
+    startTransition(() => {
+      setSelectedDate(date)
+    })
+  }, [startTransition])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -716,20 +764,17 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
+                {calendarData.map((item) => {
+                  if (item.isEmpty) {
+                    return <div key={item.key} className="h-24 min-h-[6rem]"></div>
+                  }
+
+                  const { day, date, dayOnboardings, isToday, isSelected } = item
 
                   return (
                     <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
+                      key={item.key}
+                      onClick={() => handleSelectDate(date)}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}

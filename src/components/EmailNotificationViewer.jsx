@@ -45,10 +45,24 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? (
+        <span className="flex flex-col gap-1">
+          <span>Email sent successfully!</span>
+          {result.previewUrl && (
+            <a
+              href={result.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold hover:text-cyan-200 text-xs"
+            >
+              View Sent Email ↗
+            </a>
+          )}
+        </span>
+      ) : `Failed: ${result.error}`
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 7000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -199,11 +213,31 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex flex-col gap-1 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <div className="mt-1">
+                          <a
+                            href={notification.previewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-pink-400 hover:text-pink-300 font-semibold underline flex items-center gap-1"
+                          >
+                            🔗 View Sent Email ↗
+                          </a>
+                        </div>
+                      )}
+                      {notification.details && (
+                        <div className="mt-1 bg-black/30 rounded p-2 text-[10px] font-mono text-white/50 border border-white/5">
+                          <div className="text-white/70 font-semibold mb-1">Diagnostic Log:</div>
+                          <div>Accepted: {JSON.stringify(notification.details.accepted)}</div>
+                          <div>Rejected: {JSON.stringify(notification.details.rejected)}</div>
+                          <div className="truncate">Response: {notification.details.response}</div>
+                        </div>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
