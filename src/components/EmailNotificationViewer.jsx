@@ -45,10 +45,11 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.previewUrl
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 10000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -93,11 +94,23 @@ export default function EmailNotificationViewer() {
         <div className={`
           ${statusMessage.type === 'success' ? 'bg-green-500' :
             statusMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}
-          text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
+          text-white px-4 py-3 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
         `}>
-          <div className="flex items-center gap-2">
-            {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
-            <span>{statusMessage.message}</span>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
+              <span>{statusMessage.message}</span>
+            </div>
+            {statusMessage.previewUrl && (
+              <a
+                href={statusMessage.previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline font-semibold hover:text-blue-100 text-xs block mt-1"
+              >
+                🔗 View Sent Email (Ethereal Preview)
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -204,7 +217,25 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 hover:text-cyan-300 underline font-medium"
+                        >
+                          View Sent Email
+                        </a>
+                      )}
                     </div>
+                    {notification.details && (
+                      <div className="mt-2 text-[10px] text-white/50 bg-black/30 p-2 rounded font-mono border border-white/5">
+                        <div className="font-bold mb-1 text-white/70">SMTP Diagnostics:</div>
+                        <div>Accepted: {JSON.stringify(notification.details.accepted)}</div>
+                        <div>Rejected: {JSON.stringify(notification.details.rejected)}</div>
+                        <div className="truncate">Response: {notification.details.response}</div>
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}

@@ -18,6 +18,13 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
+const formatLocalYYYYMMDD = (date) => {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 function App() {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
@@ -94,6 +101,7 @@ function App() {
       )
       const sessionNumber = clientOnboardings.length + 1
 
+      const dateStr = formatLocalYYYYMMDD(selectedDate)
       const newOnboarding = {
         employeeId: parseInt(employeeId),
         employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
@@ -101,8 +109,8 @@ function App() {
         accountNumber: accountNumber.trim(),
         sessionNumber,
         attendance: 'pending',
-        date: selectedDate.toISOString().split('T')[0],
-        month: selectedDate.toISOString().slice(0, 7)
+        date: dateStr,
+        month: dateStr.slice(0, 7)
       }
 
       // Save to Supabase
@@ -251,15 +259,6 @@ function App() {
     }
   }, [autoSync])
 
-  // Calendar helper functions
-  const getDaysInMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [])
-
-  const getFirstDayOfMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }, [])
-
   // Index onboardings by date for O(1) calendar lookups
   const onboardingsByDate = useMemo(() => {
     const map = new Map()
@@ -273,13 +272,56 @@ function App() {
   }, [onboardings])
 
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = formatLocalYYYYMMDD(date)
     return onboardingsByDate.get(dateStr) || []
   }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
+
+  // Calendar rendering data helper
+  const calendarData = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const firstDay = new Date(year, month, 1).getDay()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+
+    const emptyDays = Array.from({ length: firstDay }, (_, i) => ({
+      key: `empty-${i}`
+    }))
+
+    const todayStr = formatLocalYYYYMMDD(new Date())
+    const selectedStr = formatLocalYYYYMMDD(selectedDate)
+
+    const days = Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1
+      const dateObj = new Date(year, month, day)
+      const dateStr = formatLocalYYYYMMDD(dateObj)
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateStr === todayStr
+      const isSelected = dateStr === selectedStr
+
+      return {
+        day,
+        dateObj,
+        onboardingsCount: dayOnboardings.length,
+        isToday,
+        isSelected
+      }
+    })
+
+    return {
+      emptyDays,
+      days
+    }
+  }, [currentDate, selectedDate, onboardingsByDate])
+
+  const handleDateSelect = useCallback((date) => {
+    startTransition(() => {
+      setSelectedDate(date)
+    })
+  }, [startTransition])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -315,7 +357,7 @@ function App() {
   }, [])
 
   const getMonthlyCompletionStats = useCallback((date) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const monthStr = formatLocalYYYYMMDD(date).slice(0, 7)
     const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
 
     const totalSessions = monthOnboardings.length
@@ -357,7 +399,7 @@ function App() {
   }, [employees])
 
   const stats = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
+    const currentMonth = formatLocalYYYYMMDD(new Date()).slice(0, 7)
     const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
     const thisMonthCompleted = onboardings.filter(ob =>
       ob.month === currentMonth && ob.attendance === 'completed'
@@ -385,7 +427,7 @@ function App() {
   }, [onboardings])
 
   const getAllCompletedStats = useCallback((date = new Date()) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const monthStr = formatLocalYYYYMMDD(date).slice(0, 7)
     const monthMap = completedStatsCache.get(monthStr)
 
     if (!monthMap) return []
@@ -438,7 +480,7 @@ function App() {
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
-    const monthStr = viewMode === 'monthly' && monthDate ? monthDate.toISOString().slice(0, 7) : null
+    const monthStr = viewMode === 'monthly' && monthDate ? formatLocalYYYYMMDD(monthDate).slice(0, 7) : null
 
     // Single pass filter with combined conditions
     const filtered = onboardings.filter(ob => {
@@ -716,42 +758,34 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
+                {calendarData.emptyDays.map(emptyDay => (
+                  <div key={emptyDay.key} className="h-24 min-h-[6rem]"></div>
                 ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
-                  return (
-                    <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
-                      className={`
-                        relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
-                        border border-white/10
-                      `}
-                    >
-                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
-                      </div>
-
-                      {dayOnboardings.length > 0 && (
-                        <div className="absolute bottom-1 right-1 pointer-events-none">
-                          <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
-                            {dayOnboardings.length}
-                          </div>
-                        </div>
-                      )}
+                {calendarData.days.map(day => (
+                  <div
+                    key={day.day}
+                    onClick={() => handleDateSelect(day.dateObj)}
+                    className={`
+                      relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
+                      ${day.isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
+                      ${day.isSelected && !day.isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
+                      ${!day.isToday && !day.isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
+                      border border-white/10
+                    `}
+                  >
+                    <div className={`text-sm sm:text-base font-medium pointer-events-none ${day.isToday ? 'text-white' : 'text-white/90'}`}>
+                      {day.day}
                     </div>
-                  )
-                })}
+
+                    {day.onboardingsCount > 0 && (
+                      <div className="absolute bottom-1 right-1 pointer-events-none">
+                        <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
+                          {day.onboardingsCount}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>

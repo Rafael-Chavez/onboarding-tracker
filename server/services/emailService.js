@@ -3,18 +3,53 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-/**
- * Service to handle email sending using nodemailer
- */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+let cachedTransporter = null;
+let isEthereal = false;
+
+async function getTransporter() {
+  if (cachedTransporter) {
+    return cachedTransporter;
+  }
+
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (user && pass) {
+    isEthereal = false;
+    cachedTransporter = nodemailer.createTransport({
+      host: host || 'smtp.gmail.com',
+      port: parseInt(port || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user,
+        pass,
+      },
+    });
+    return cachedTransporter;
+  }
+
+  console.log('No SMTP credentials configured. Generating Ethereal SMTP test account...');
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    isEthereal = true;
+    cachedTransporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    console.log(`Ethereal SMTP test account generated: ${testAccount.user}`);
+    return cachedTransporter;
+  } catch (error) {
+    console.error('Failed to generate Ethereal test account:', error);
+    throw error;
+  }
+}
 
 export const EmailService = {
   /**
@@ -33,16 +68,15 @@ export const EmailService = {
    * Verify SMTP connection health
    */
   async verifyConnection() {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      return {
-        success: false,
-        error: 'SMTP credentials missing (SMTP_USER/SMTP_PASS)'
-      };
-    }
-
     try {
-      await transporter.verify();
-      return { success: true, message: 'SMTP connection verified successfully' };
+      const transporterInstance = await getTransporter();
+      await transporterInstance.verify();
+      return {
+        success: true,
+        message: isEthereal
+          ? 'SMTP connection verified successfully (using Ethereal fallback)'
+          : 'SMTP connection verified successfully'
+      };
     } catch (error) {
       console.error('SMTP Verification Error:', error);
       return {
@@ -57,23 +91,15 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
-      return {
-        success: false,
-        error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
-      };
-    }
-
     try {
-      // Verify connection before sending
-      const verify = await this.verifyConnection();
-      if (!verify.success) {
-        return verify;
-      }
+      const transporterInstance = await getTransporter();
 
-      const info = await transporter.sendMail({
-        from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
+      const fromEmail = isEthereal
+        ? transporterInstance.options.auth.user
+        : (process.env.SMTP_USER || 'noreply@onboardingtracker.com');
+
+      const info = await transporterInstance.sendMail({
+        from: `"Onboarding Tracker" <${fromEmail}>`,
         to,
         subject,
         text,
@@ -81,9 +107,17 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+
+      let previewUrl = null;
+      if (isEthereal) {
+        previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log(`Preview URL: ${previewUrl}`);
+      }
+
       return {
         success: true,
         messageId: info.messageId,
+        previewUrl,
         details: {
           accepted: info.accepted,
           rejected: info.rejected,
