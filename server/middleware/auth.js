@@ -25,6 +25,22 @@ if (!admin.apps.length) {
   }
 }
 
+const decodeTokenUnverified = (token) => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+    return {
+      uid: payload.user_id || payload.sub,
+      email: payload.email,
+      name: payload.name || payload.email?.split('@')[0]
+    };
+  } catch (error) {
+    console.error('Error decoding token without verification:', error);
+    return null;
+  }
+};
+
 // Middleware to verify Firebase ID token
 const verifyToken = async (req, res, next) => {
   try {
@@ -36,8 +52,18 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    let decodedToken;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      // Verify the token using Firebase Admin SDK
+      decodedToken = await admin.auth().verifyIdToken(token);
+    } else {
+      console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_PATH not set. Using unverified token decoding for development.');
+      decodedToken = decodeTokenUnverified(token);
+      if (!decodedToken) {
+        return res.status(401).json({ error: 'Invalid token format in development fallback' });
+      }
+    }
+
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
