@@ -105,12 +105,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        previewUrl: result.success ? result.previewUrl : null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.success ? result.previewUrl : null,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -180,11 +182,13 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        previewUrl: result.success ? result.previewUrl : null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
+        previewUrl: result.success ? result.previewUrl : null,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
