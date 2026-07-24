@@ -251,15 +251,6 @@ function App() {
     }
   }, [autoSync])
 
-  // Calendar helper functions
-  const getDaysInMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [])
-
-  const getFirstDayOfMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }, [])
-
   // Index onboardings by date for O(1) calendar lookups
   const onboardingsByDate = useMemo(() => {
     const map = new Map()
@@ -273,13 +264,48 @@ function App() {
   }, [onboardings])
 
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const dayStr = String(date.getDate()).padStart(2, '0')
+    const dateStr = `${year}-${month}-${dayStr}`
     return onboardingsByDate.get(dateStr) || []
   }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
+
+  const todayStr = useMemo(() => new Date().toDateString(), [])
+  const selectedDateStr = useMemo(() => selectedDate.toDateString(), [selectedDate])
+
+  // Calendar data pre-calculation to optimize calendar loop rendering
+  const calendarData = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+
+    const firstDayIndex = new Date(year, month, 1).getDay()
+    const totalDays = new Date(year, month + 1, 0).getDate()
+
+    const days = []
+    for (let day = 1; day <= totalDays; day++) {
+      const date = new Date(year, month, day)
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const dateStr = `${y}-${m}-${d}`
+      days.push({
+        day,
+        date,
+        dateStr,
+        toDateStr: date.toDateString()
+      })
+    }
+
+    return {
+      firstDayIndex,
+      days
+    }
+  }, [currentDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -302,7 +328,7 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const navigateOverviewMonth = useCallback((direction) => {
     startTransition(() => {
@@ -312,7 +338,7 @@ function App() {
         return newDate
       })
     })
-  }, [])
+  }, [startTransition])
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const monthStr = date.toISOString().slice(0, 7)
@@ -716,20 +742,22 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                {Array.from({ length: calendarData.firstDayIndex }, (_, i) => (
                   <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
                 ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
+                {calendarData.days.map(({ day, date, dateStr, toDateStr }) => {
+                  const dayOnboardings = onboardingsByDate.get(dateStr) || []
+                  const isToday = toDateStr === todayStr
+                  const isSelected = toDateStr === selectedDateStr
 
                   return (
                     <div
                       key={day}
-                      onClick={() => setSelectedDate(date)}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(date)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
                         ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
