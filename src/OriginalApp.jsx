@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
+import { useState, useEffect, useMemo, useCallback, useTransition, startTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
@@ -251,35 +251,67 @@ function App() {
     }
   }, [autoSync])
 
-  // Calendar helper functions
-  const getDaysInMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [])
-
-  const getFirstDayOfMonth = useCallback((date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }, [])
-
   // Index onboardings by date for O(1) calendar lookups
   const onboardingsByDate = useMemo(() => {
     const map = new Map()
     onboardings.forEach(ob => {
-      if (!map.has(ob.date)) {
-        map.set(ob.date, [])
+      if (ob.date) {
+        if (!map.has(ob.date)) {
+          map.set(ob.date, [])
+        }
+        map.get(ob.date).push(ob)
       }
-      map.get(ob.date).push(ob)
     })
     return map
   }, [onboardings])
 
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     return onboardingsByDate.get(dateStr) || []
   }, [onboardingsByDate])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
+
+  // Pre-calculate full calendar cells to avoid expensive operations in the render loop
+  const calendarData = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const firstDay = new Date(year, month, 1).getDay()
+
+    const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
+    const selectedStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+
+    const cells = []
+
+    // Padding cells before the first day of the month
+    for (let i = 0; i < firstDay; i++) {
+      cells.push({ type: 'empty', id: `empty-${i}` })
+    }
+
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateStr === todayStr
+      const isSelected = dateStr === selectedStr
+      const dateObj = new Date(year, month, day)
+
+      cells.push({
+        type: 'day',
+        day,
+        dateObj,
+        dateStr,
+        dayOnboardings,
+        isToday,
+        isSelected
+      })
+    }
+
+    return cells
+  }, [currentDate, selectedDate, onboardingsByDate])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -716,36 +748,35 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
-                ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
+                {calendarData.map((cell) => {
+                  if (cell.type === 'empty') {
+                    return <div key={cell.id} className="h-24 min-h-[6rem]"></div>
+                  }
 
                   return (
                     <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
+                      key={cell.day}
+                      onClick={() => {
+                        startTransition(() => {
+                          setSelectedDate(cell.dateObj)
+                        })
+                      }}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
+                        ${cell.isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
+                        ${cell.isSelected && !cell.isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
+                        ${!cell.isToday && !cell.isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
                         border border-white/10
                       `}
                     >
-                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
+                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${cell.isToday ? 'text-white' : 'text-white/90'}`}>
+                        {cell.day}
                       </div>
 
-                      {dayOnboardings.length > 0 && (
+                      {cell.dayOnboardings.length > 0 && (
                         <div className="absolute bottom-1 right-1 pointer-events-none">
                           <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
-                            {dayOnboardings.length}
+                            {cell.dayOnboardings.length}
                           </div>
                         </div>
                       )}
