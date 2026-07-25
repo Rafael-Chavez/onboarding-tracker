@@ -204,6 +204,16 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded text-[11px] font-semibold transition-colors flex items-center gap-1"
+                        >
+                          🔗 View Sent Email
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
