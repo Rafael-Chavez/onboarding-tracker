@@ -36,6 +36,23 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    // If FIREBASE_SERVICE_ACCOUNT_PATH is not configured, automatically fall back to unverified base64 decoding strictly in development environments
+    if (process.env.NODE_ENV === 'development' && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payloadBuf = Buffer.from(parts[1], 'base64');
+        const decodedToken = JSON.parse(payloadBuf.toString('utf8'));
+        req.user = {
+          uid: decodedToken.user_id || decodedToken.uid || 'dev-user-uid',
+          email: decodedToken.email || 'dev-user@example.com',
+          name: decodedToken.name || (decodedToken.email ? decodedToken.email.split('@')[0] : 'Dev User')
+        };
+        return next();
+      } else {
+        return res.status(401).json({ error: 'Invalid token format for decoding fallback' });
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {

@@ -11,9 +11,15 @@ export const EmailNotificationService = {
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
       // Get the current user's ID token from Firebase
-      const user = auth.currentUser;
+      let user = auth.currentUser;
       if (!user) {
-        throw new Error('User must be logged in to send notifications');
+        if (import.meta.env.DEV) {
+          user = {
+            getIdToken: async () => 'mock-dev-token.eyJ1aWQiOiJkZXYtdXNlci11aWQiLCJlbWFpbCI6ImRldi11c2VyQGV4YW1wbGUuY29tIiwibmFtZSI6IkRldiBVc2VyIn0.signature'
+          };
+        } else {
+          throw new Error('User must be logged in to send notifications');
+        }
       }
 
       const token = await user.getIdToken();
@@ -105,12 +111,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.previewUrl,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -180,11 +188,13 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl
       });
 
       return {
         success: result.success,
+        previewUrl: result.previewUrl,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -235,8 +245,16 @@ Generated: ${new Date().toLocaleString()}
    */
   async verifySMTP() {
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
+      let user = auth.currentUser;
+      if (!user) {
+        if (import.meta.env.DEV) {
+          user = {
+            getIdToken: async () => 'mock-dev-token.eyJ1aWQiOiJkZXYtdXNlci11aWQiLCJlbWFpbCI6ImRldi11c2VyQGV4YW1wbGUuY29tIiwibmFtZSI6IkRldiBVc2VyIn0.signature'
+          };
+        } else {
+          throw new Error('User must be logged in');
+        }
+      }
 
       const token = await user.getIdToken();
       const response = await fetch(`${API_URL}/email/verify`, {
