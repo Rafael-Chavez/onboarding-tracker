@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
+import { useState, useEffect, useMemo, useCallback, useTransition, startTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
@@ -47,12 +47,19 @@ function App() {
     }
   }, [])
 
+  // Helper to format local year, month, and day to YYYY-MM-DD
+  const formatLocalDateString = useCallback((year, month, day) => {
+    const mm = String(month + 1).padStart(2, '0')
+    const dd = String(day).padStart(2, '0')
+    return `${year}-${mm}-${dd}`
+  }, [])
+
   const [onboardings, setOnboardings] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
-  const [isPending, startTransition] = useTransition()
+  const [isPending] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
@@ -94,6 +101,9 @@ function App() {
       )
       const sessionNumber = clientOnboardings.length + 1
 
+      const dateStr = formatLocalDateString(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+      const monthStr = dateStr.slice(0, 7)
+
       const newOnboarding = {
         employeeId: parseInt(employeeId),
         employeeName: employees.find(e => e.id === parseInt(employeeId))?.name,
@@ -101,8 +111,8 @@ function App() {
         accountNumber: accountNumber.trim(),
         sessionNumber,
         attendance: 'pending',
-        date: selectedDate.toISOString().split('T')[0],
-        month: selectedDate.toISOString().slice(0, 7)
+        date: dateStr,
+        month: monthStr
       }
 
       // Save to Supabase
@@ -273,13 +283,55 @@ function App() {
   }, [onboardings])
 
   const getOnboardingsForDate = useCallback((date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = formatLocalDateString(date.getFullYear(), date.getMonth(), date.getDate())
     return onboardingsByDate.get(dateStr) || []
-  }, [onboardingsByDate])
+  }, [onboardingsByDate, formatLocalDateString])
 
   const selectedDateOnboardings = useMemo(() => {
     return getOnboardingsForDate(selectedDate)
   }, [getOnboardingsForDate, selectedDate])
+
+  // Optimize calendar rendering via pre-calculating day details in a useMemo block
+  const calendarData = useMemo(() => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const firstDayIndex = getFirstDayOfMonth(currentDate)
+    const daysCount = getDaysInMonth(currentDate)
+
+    const todayStr = (() => {
+      const today = new Date()
+      return formatLocalDateString(today.getFullYear(), today.getMonth(), today.getDate())
+    })()
+
+    const days = Array.from({ length: daysCount }, (_, i) => {
+      const day = i + 1
+      const dateStr = formatLocalDateString(year, month, day)
+      const dayOnboardings = onboardingsByDate.get(dateStr) || []
+      const isToday = dateStr === todayStr
+      const isSelected = formatLocalDateString(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()) === dateStr
+
+      return {
+        day,
+        dateStr,
+        dayOnboardings,
+        isToday,
+        isSelected,
+        date: new Date(year, month, day)
+      }
+    })
+
+    return {
+      firstDayIndex,
+      days
+    }
+  }, [currentDate, selectedDate, onboardingsByDate, formatLocalDateString, getFirstDayOfMonth, getDaysInMonth])
+
+  // Callback for date selection, wrapped in startTransition for INP optimization
+  const handleSelectDate = useCallback((date) => {
+    startTransition(() => {
+      setSelectedDate(date)
+    })
+  }, [])
 
   const formatDateForDisplay = useCallback((date) => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
@@ -315,7 +367,9 @@ function App() {
   }, [])
 
   const getMonthlyCompletionStats = useCallback((date) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const monthStr = `${year}-${month}`
     const monthOnboardings = onboardings.filter(ob => ob.month === monthStr)
 
     const totalSessions = monthOnboardings.length
@@ -357,7 +411,8 @@ function App() {
   }, [employees])
 
   const stats = useMemo(() => {
-    const currentMonth = new Date().toISOString().slice(0, 7)
+    const today = new Date()
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
     const thisMonth = onboardings.filter(ob => ob.month === currentMonth).length
     const thisMonthCompleted = onboardings.filter(ob =>
       ob.month === currentMonth && ob.attendance === 'completed'
@@ -385,7 +440,9 @@ function App() {
   }, [onboardings])
 
   const getAllCompletedStats = useCallback((date = new Date()) => {
-    const monthStr = date.toISOString().slice(0, 7)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const monthStr = `${year}-${month}`
     const monthMap = completedStatsCache.get(monthStr)
 
     if (!monthMap) return []
@@ -412,19 +469,19 @@ function App() {
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   const handleSelectEmployeeHistory = useCallback((employeeId) => {
     startTransition(() => {
       setSelectedEmployeeHistory(employeeId)
     })
-  }, [startTransition])
+  }, [])
 
   const handleSetEmployeeHistoryViewMode = useCallback((mode) => {
     startTransition(() => {
       setEmployeeHistoryViewMode(mode)
     })
-  }, [startTransition])
+  }, [])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
     startTransition(() => {
@@ -434,11 +491,11 @@ function App() {
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
-    const monthStr = viewMode === 'monthly' && monthDate ? monthDate.toISOString().slice(0, 7) : null
+    const monthStr = viewMode === 'monthly' && monthDate ? `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}` : null
 
     // Single pass filter with combined conditions
     const filtered = onboardings.filter(ob => {
@@ -716,36 +773,30 @@ function App() {
               </div>
 
               <div className="grid grid-cols-7 gap-2 sm:gap-3">
-                {Array.from({ length: getFirstDayOfMonth(currentDate) }, (_, i) => (
+                {Array.from({ length: calendarData.firstDayIndex }, (_, i) => (
                   <div key={`empty-${i}`} className="h-24 min-h-[6rem]"></div>
                 ))}
-                {Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
-                  const day = i + 1
-                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                  const dayOnboardings = getOnboardingsForDate(date)
-                  const isToday = date.toDateString() === new Date().toDateString()
-                  const isSelected = date.toDateString() === selectedDate.toDateString()
-
+                {calendarData.days.map((dayData) => {
                   return (
                     <div
-                      key={day}
-                      onClick={() => setSelectedDate(date)}
+                      key={dayData.day}
+                      onClick={() => handleSelectDate(dayData.date)}
                       className={`
                         relative h-24 min-h-[6rem] rounded-xl cursor-pointer transition-colors duration-150 p-3
-                        ${isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
-                        ${isSelected && !isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
-                        ${!isToday && !isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
+                        ${dayData.isToday ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 ring-2 ring-blue-400 shadow-lg shadow-blue-500/25' : ''}
+                        ${dayData.isSelected && !dayData.isToday ? 'bg-white/20 ring-2 ring-white/50' : ''}
+                        ${!dayData.isToday && !dayData.isSelected ? 'bg-white/5 hover:bg-white/10' : ''}
                         border border-white/10
                       `}
                     >
-                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${isToday ? 'text-white' : 'text-white/90'}`}>
-                        {day}
+                      <div className={`text-sm sm:text-base font-medium pointer-events-none ${dayData.isToday ? 'text-white' : 'text-white/90'}`}>
+                        {dayData.day}
                       </div>
 
-                      {dayOnboardings.length > 0 && (
+                      {dayData.dayOnboardings.length > 0 && (
                         <div className="absolute bottom-1 right-1 pointer-events-none">
                           <div className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 bg-gradient-to-r from-green-400 to-blue-400 rounded-full text-xs text-white font-bold shadow-lg animate-pulse-subtle">
-                            {dayOnboardings.length}
+                            {dayData.dayOnboardings.length}
                           </div>
                         </div>
                       )}
