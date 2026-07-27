@@ -12,11 +12,17 @@ export const EmailNotificationService = {
     try {
       // Get the current user's ID token from Firebase
       const user = auth.currentUser;
+      let token = '';
       if (!user) {
-        throw new Error('User must be logged in to send notifications');
+        if (import.meta.env.DEV || window.location.search.includes('debugEmail=true')) {
+          console.warn('No active Firebase session. Using mock session for email development.');
+          token = 'mock-dev-token';
+        } else {
+          throw new Error('User must be logged in to send notifications');
+        }
+      } else {
+        token = await user.getIdToken();
       }
-
-      const token = await user.getIdToken();
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -105,12 +111,16 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -180,11 +190,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -236,9 +250,17 @@ Generated: ${new Date().toLocaleString()}
   async verifySMTP() {
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
-
-      const token = await user.getIdToken();
+      let token = '';
+      if (!user) {
+        if (import.meta.env.DEV || window.location.search.includes('debugEmail=true')) {
+          console.warn('No active Firebase session. Using mock session for SMTP verification.');
+          token = 'mock-dev-token';
+        } else {
+          throw new Error('User must be logged in');
+        }
+      } else {
+        token = await user.getIdToken();
+      }
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
