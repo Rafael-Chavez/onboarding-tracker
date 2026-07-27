@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -807,6 +808,10 @@ export default function SalesDashboard() {
             </div>
           )}
         </div>
+
+        {window.location.search.includes('debugEmail=true') && (
+          <EmailNotificationViewer />
+        )}
       </div>
     </>
   );

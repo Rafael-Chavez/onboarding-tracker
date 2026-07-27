@@ -15,10 +15,11 @@ if (!admin.apps.length) {
       });
       console.log('Firebase Admin SDK initialized successfully');
     } else {
-      // For development, you can initialize without credentials
-      // but token verification will not work
-      console.warn('Firebase Admin SDK not initialized - No service account provided');
-      console.warn('Set FIREBASE_SERVICE_ACCOUNT_PATH in .env to enable authentication');
+      // For development, initialize with mock configuration to prevent "app/no-app" errors
+      admin.initializeApp({
+        projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'mock-project'
+      });
+      console.warn('Firebase Admin SDK initialized with mock development configuration');
     }
   } catch (error) {
     console.error('Error initializing Firebase Admin:', error);
@@ -35,8 +36,40 @@ const verifyToken = async (req, res, next) => {
     }
 
     const token = authHeader.split('Bearer ')[1];
+    const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
 
-    // Verify the token
+    // Check for development fallback
+    if (isDev && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      console.log('Using development unverified token verification fallback');
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.user_id || payload.sub || 'mock-uid',
+            email: payload.email || 'mock@example.com',
+            name: payload.name || 'Mock User'
+          };
+        } else {
+          req.user = {
+            uid: 'mock-uid',
+            email: 'rchavez@deconetwork.com',
+            name: 'Mock Admin'
+          };
+        }
+        return next();
+      } catch (err) {
+        console.warn('Development token decoding failed, falling back to mock admin:', err.message);
+        req.user = {
+          uid: 'mock-uid',
+          email: 'rchavez@deconetwork.com',
+          name: 'Mock Admin'
+        };
+        return next();
+      }
+    }
+
+    // Verify the token using Firebase Admin SDK
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,
