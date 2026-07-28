@@ -19,7 +19,7 @@ export default function AdminDashboard() {
     startTransition(() => {
       setCurrentView(newView);
     });
-  }, []);
+  }, [startTransition]);
 
   // Load onboardings for pending approvals
   const fetchOnboardings = useCallback(async () => {
@@ -114,7 +114,7 @@ export default function AdminDashboard() {
                 onReject={rejectCompletion}
               />
             </div>
-            <OriginalApp />
+            <OriginalApp onboardings={onboardings} />
           </div>
         );
     }
