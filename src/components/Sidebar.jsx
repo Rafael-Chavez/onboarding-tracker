@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, memo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
+import { Icons, iconProps } from './icons';
 
 function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
   const { logout } = useAuth();
@@ -83,15 +84,15 @@ function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
   const { current, upcoming } = nightShiftData;
 
   const menuItems = isAdmin ? [
-    { id: 'dashboard', icon: '📊', label: 'Admin Dashboard' },
-    { id: 'sales', icon: '💰', label: 'Sales Channel' },
-    { id: 'nightshift', icon: '🌙', label: 'Night Shift Manager' },
-    { id: 'notifications', icon: '📧', label: 'Notifications' },
+    { id: 'dashboard', icon: Icons.Dashboard, label: 'Admin Dashboard' },
+    { id: 'sales', icon: Icons.Sales, label: 'Sales Channel' },
+    { id: 'nightshift', icon: Icons.Moon, label: 'Night Shift Manager' },
+    { id: 'notifications', icon: Icons.Mail, label: 'Notifications' },
   ] : [
-    { id: 'overview', icon: '📊', label: 'Overview' },
-    { id: 'sessions', icon: '📅', label: 'Sessions' },
-    { id: 'calendar', icon: '🌙', label: 'Night Shift Calendar' },
-    { id: 'settings', icon: '⚙️', label: 'Settings' },
+    { id: 'overview', icon: Icons.Dashboard, label: 'Overview' },
+    { id: 'sessions', icon: Icons.Calendar, label: 'Sessions' },
+    { id: 'calendar', icon: Icons.Moon, label: 'Night Shift Calendar' },
+    { id: 'settings', icon: Icons.Settings, label: 'Settings' },
   ];
 
   return (
@@ -339,16 +340,21 @@ function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
       </div>
 
       <div className="sidebar-menu">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            className={`menu-item ${currentView === item.id ? 'active' : ''}`}
-            onClick={() => onViewChange(item.id)}
-          >
-            <span className="menu-item-icon">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+        {menuItems.map((item) => {
+          const IconComponent = item.icon;
+          return (
+            <button
+              key={item.id}
+              className={`menu-item ${currentView === item.id ? 'active' : ''}`}
+              onClick={() => onViewChange(item.id)}
+            >
+              <span className="menu-item-icon">
+                <IconComponent {...iconProps} />
+              </span>
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
 
         {/* Night Shift Sidebar Widget */}
         {current && (
@@ -397,6 +403,7 @@ function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
           </div>
         </div>
         <button onClick={logout} className="logout-btn">
+          <Icons.Logout {...iconProps} style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }} />
           Sign Out
         </button>
       </div>

@@ -7,6 +7,7 @@ import NightShiftCalendarView from './NightShiftCalendarView';
 import NightShiftBanner from './NightShiftBanner';
 import ShiftTradeModal from './ShiftTradeModal';
 import EmailNotificationViewer from './EmailNotificationViewer';
+import { Icons, iconProps } from './icons';
 
 export default function TeamDashboard() {
   const { currentUser, employeeId } = useAuth();
@@ -583,9 +584,10 @@ export default function TeamDashboard() {
                                     <button
                                       onClick={() => handleStatusChange(onboarding.id, 'completed')}
                                       disabled={statusLoading[onboarding.id]}
-                                      className="px-2 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/25 transition-colors disabled:opacity-50 whitespace-nowrap"
+                                      className="px-2 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/25 transition-colors disabled:opacity-50 whitespace-nowrap flex items-center gap-1"
                                     >
-                                      Request ✓
+                                      <Icons.Check size={12} strokeWidth={2} />
+                                      Request
                                     </button>
                                   )}
                                   {(onboarding.attendance === 'no-show' || onboarding.attendance === 'rescheduled' || onboarding.attendance === 'pending_approval') && (

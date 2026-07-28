@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { EmailNotificationService } from '../services/emailNotifications';
+import { Icons, iconProps } from './icons';
 
 export default function EmailNotificationViewer() {
   const [notifications, setNotifications] = useState([]);
@@ -96,7 +97,9 @@ export default function EmailNotificationViewer() {
           text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
         `}>
           <div className="flex items-center gap-2">
-            {statusMessage.type === 'success' ? '✓' : statusMessage.type === 'error' ? '✗' : 'ℹ'}
+            {statusMessage.type === 'success' ? <Icons.CheckCircle {...iconProps} /> :
+             statusMessage.type === 'error' ? <Icons.XCircle {...iconProps} /> :
+             <Icons.Info {...iconProps} />}
             <span>{statusMessage.message}</span>
           </div>
         </div>
@@ -110,14 +113,16 @@ export default function EmailNotificationViewer() {
           className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2 border border-white/10"
           title="Verify SMTP Backend Configuration"
         >
-          {isVerifying ? '⌛' : '🔍'} Check SMTP
+          {isVerifying ? <Icons.Clock {...iconProps} className="animate-spin" /> : <Icons.Settings {...iconProps} />}
+          Check SMTP
         </button>
 
         <button
           onClick={sendTestEmail}
           className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-4 py-2 rounded-lg shadow-lg font-medium transition-colors flex items-center gap-2"
         >
-          📧 Send Test Email
+          <Icons.Send {...iconProps} />
+          Send Test Email
         </button>
 
         <button

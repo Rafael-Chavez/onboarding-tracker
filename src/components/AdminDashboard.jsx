@@ -107,14 +107,12 @@ export default function AdminDashboard() {
       default:
         return (
           <div className="admin-app-wrapper">
-            <div className="p-4 md:p-8">
-              <PendingApprovalsAlert
-                pendingApprovals={pendingApprovals}
-                onApprove={approveCompletion}
-                onReject={rejectCompletion}
-              />
-            </div>
-            <OriginalApp onboardings={onboardings} />
+            <OriginalApp
+              onboardings={onboardings}
+              pendingApprovals={pendingApprovals}
+              onApprove={approveCompletion}
+              onReject={rejectCompletion}
+            />
           </div>
         );
     }

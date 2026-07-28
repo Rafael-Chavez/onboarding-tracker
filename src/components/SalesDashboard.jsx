@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -656,7 +657,9 @@ export default function SalesDashboard() {
           <div className="sales-title-row">
             <h1 className="sales-title">// ONBOARDING RECORDS</h1>
             <button className="theme-toggle" onClick={toggleTheme}>
-              <span className="theme-toggle-icon">{lightMode ? '🌙' : '☀️'}</span>
+              <span className="theme-toggle-icon">
+                {lightMode ? <Icons.Moon size={18} strokeWidth={2} /> : <Icons.Sun size={18} strokeWidth={2} />}
+              </span>
               {lightMode ? 'DARK' : 'LIGHT'}
             </button>
           </div>

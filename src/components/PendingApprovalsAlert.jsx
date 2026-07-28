@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
+import { Icons, iconProps } from './icons';
 
 const PendingApprovalsAlert = ({ pendingApprovals, onReject, onApprove }) => {
   if (pendingApprovals.length === 0) return null;
@@ -63,15 +64,17 @@ const ApprovalItem = memo(({ ob, onReject, onApprove }) => {
       <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={handleReject}
-          className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-colors"
+          className="px-4 py-2 text-sm font-semibold bg-red-500/20 text-red-300 border border-red-500/40 rounded-lg hover:bg-red-500/35 transition-colors flex items-center gap-2"
         >
+          <Icons.X {...iconProps} />
           Reject
         </button>
         <button
           onClick={handleApprove}
-          className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-colors"
+          className="px-4 py-2 text-sm font-semibold bg-green-500/20 text-green-300 border border-green-500/40 rounded-lg hover:bg-green-500/35 transition-colors flex items-center gap-2"
         >
-          Approve ✓
+          <Icons.Check {...iconProps} />
+          Approve
         </button>
       </div>
     </div>

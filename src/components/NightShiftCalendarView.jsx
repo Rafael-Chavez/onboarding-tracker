@@ -3,6 +3,8 @@ import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftTradeModal from './ShiftTradeModal';
 import AdminShiftOverrideModal from './AdminShiftOverrideModal';
+import FullScheduleModal from './FullScheduleModal';
+import { Icons, iconProps } from './icons';
 
 export default function NightShiftCalendarView({ employeeId, employeeName }) {
   const { userRole } = useAuth();
@@ -20,6 +22,8 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
   const [selectedMember, setSelectedMember] = useState(null);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [selectedShiftForOverride, setSelectedShiftForOverride] = useState(null);
+  const [showFullScheduleModal, setShowFullScheduleModal] = useState(false);
+  const [selectedScheduleMember, setSelectedScheduleMember] = useState(null);
 
   // Load shifts for current month
   useEffect(() => {
@@ -237,14 +241,15 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
         .team-member-card {
           background: rgba(255, 255, 255, 0.03);
           border: 1px solid rgba(139, 92, 246, 0.15);
-          border-radius: 12px;
-          padding: 16px;
+          border-radius: 16px;
+          padding: 20px;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .team-member-card:hover {
           transform: translateY(-2px);
           box-shadow: 0 8px 16px rgba(139, 92, 246, 0.2);
+          background: rgba(255, 255, 255, 0.05);
         }
       `}</style>
 
@@ -257,13 +262,18 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
           </div>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          {teamMembers.slice(2).map((member, idx) => (
-            <div key={member.id}>
+          {[
+            teamMembers.find(m => m.name === 'Jim'),
+            teamMembers.find(m => m.name === 'Steve'),
+            teamMembers.find(m => m.name === 'Marc'),
+            teamMembers.find(m => m.name === 'Erick')
+          ].map((member, idx) => (
+            <div key={member.id} className="flex items-center gap-2">
               <div className="flex items-center bg-white/5 px-4 py-2 rounded-xl gap-3 border border-purple-500/20 shrink-0">
                 <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${member.color}`}></div>
                 <span className="text-sm font-medium text-white">{member.name}</span>
               </div>
-              {idx < 3 && <span className="inline-block mx-2 text-purple-400">→</span>}
+              {idx < 3 && <span className="text-purple-400">→</span>}
             </div>
           ))}
         </div>
@@ -351,16 +361,16 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
 
         {/* Sidebar: Shift Trades */}
         <div className="space-y-6">
-          {/* Shift Trade Availability */}
+          {/* Shift Trade & Schedule Availability */}
           <div className="sidebar-section">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-white">Shift Trade Availability</h3>
+              <h3 className="text-lg font-bold text-white">Shift Trade & Schedule</h3>
               <span className="bg-white/10 px-2 py-1 rounded text-xs font-bold text-purple-300">
                 {teamMembers.length} MEMBERS
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               {teamMembers.map(member => {
                 const isMe = member.id === employeeId;
                 const upcomingShifts = shifts.filter(s =>
@@ -370,13 +380,13 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
 
                 return (
                   <div key={member.id} className="team-member-card">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${member.color} flex items-center justify-center text-white font-bold`}>
+                        <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${member.color} flex items-center justify-center text-white font-bold text-lg`}>
                           {member.name[0]}
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">
+                        <div className="flex-1">
+                          <p className="text-base font-bold text-white">
                             {member.name} {isMe && '(You)'}
                           </p>
                           {upcomingShifts.length > 0 && (
@@ -386,17 +396,31 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
                           )}
                         </div>
                       </div>
-                      {!isMe && (
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
-                            setSelectedMember(member);
-                            setShowTradeModal(true);
+                            setSelectedScheduleMember(member);
+                            setShowFullScheduleModal(true);
                           }}
-                          className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 rounded-lg text-xs font-bold text-purple-300 transition-colors"
+                          className="flex-1 px-3 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 rounded-lg text-xs font-bold text-cyan-300 transition-colors flex items-center justify-center gap-2"
+                          title="View complete schedule"
                         >
-                          Request Trade
+                          <Icons.Calendar size={16} strokeWidth={2} />
+                          Schedule
                         </button>
-                      )}
+                        {!isMe && (
+                          <button
+                            onClick={() => {
+                              setSelectedMember(member);
+                              setShowTradeModal(true);
+                            }}
+                            className="flex-1 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 rounded-lg text-xs font-bold text-purple-300 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Icons.Refresh size={14} strokeWidth={2} />
+                            Trade
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -473,6 +497,18 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
           shift={selectedShiftForOverride}
           employees={teamMembers}
           adminName={employeeName}
+        />
+      )}
+
+      {/* Full Schedule Modal */}
+      {showFullScheduleModal && selectedScheduleMember && (
+        <FullScheduleModal
+          isOpen={showFullScheduleModal}
+          onClose={() => {
+            setShowFullScheduleModal(false);
+            setSelectedScheduleMember(null);
+          }}
+          employee={selectedScheduleMember}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ import OnboardingForm from './components/OnboardingForm'
 import GoogleSheetsSync from './components/GoogleSheetsSync'
 import EmployeeHistoryModal from './components/EmployeeHistoryModal'
 import AllCompletedStats from './components/AllCompletedStats'
+import PendingApprovalsAlert from './components/PendingApprovalsAlert'
 
 // Make debug functions globally available
 if (typeof window !== 'undefined') {
@@ -17,7 +18,7 @@ if (typeof window !== 'undefined') {
   window.debugLocalStorage = debugLocalStorage
 }
 
-function App({ onboardings: propOnboardings }) {
+function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReject }) {
   const [employees] = useState([
     { id: 1, name: 'Rafael', color: 'from-cyan-500 to-blue-500' },
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
@@ -660,6 +661,15 @@ function App({ onboardings: propOnboardings }) {
 
       {/* Night Shift Tracker */}
       <NightShiftBanner />
+
+      {/* Pending Approvals Alert - Only shown when passed from AdminDashboard */}
+      {pendingApprovals && onApprove && onReject && (
+        <PendingApprovalsAlert
+          pendingApprovals={pendingApprovals}
+          onApprove={onApprove}
+          onReject={onReject}
+        />
+      )}
 
       {/* Show All Completed Stats Button */}
       <div className="w-full mb-6">
