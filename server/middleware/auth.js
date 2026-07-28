@@ -36,6 +36,26 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    if (process.env.NODE_ENV === 'development' && !serviceAccountPath) {
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payloadJson = Buffer.from(parts[1], 'base64').toString('utf8');
+          const decodedToken = JSON.parse(payloadJson);
+          req.user = {
+            uid: decodedToken.uid || decodedToken.user_id || 'dev-uid',
+            email: decodedToken.email || 'dev@example.com',
+            name: decodedToken.name || 'Dev User'
+          };
+          return next();
+        }
+      } catch (decodeError) {
+        console.error('Error decoding token payload directly:', decodeError);
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
