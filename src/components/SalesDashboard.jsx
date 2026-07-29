@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useDeferredValue, useTransition } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { Icons, iconProps } from './icons';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -62,9 +63,11 @@ export default function SalesDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [filterEmployee, setFilterEmployee] = useState('All');
   const [filterAttendance, setFilterAttendance] = useState('All');
   const [filterMonth, setFilterMonth] = useState('All');
+  const [isPending, startTransition] = useTransition();
   const [lightMode, setLightMode] = useState(() => {
     try { return localStorage.getItem('sales-theme') === 'light'; } catch { return false; }
   });
@@ -177,7 +180,7 @@ export default function SalesDashboard() {
   }, [onboardings, sessionNumberMap]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return onboardings.filter(o => {
       if (filterEmployee !== 'All' && o.employeeName !== filterEmployee) return false;
       // pending_approval is shown as "pending" to sales team
@@ -195,13 +198,15 @@ export default function SalesDashboard() {
       }
       return true;
     });
-  }, [onboardings, search, filterEmployee, filterAttendance, filterMonth]);
+  }, [onboardings, deferredSearch, filterEmployee, filterAttendance, filterMonth]);
 
   const clearFilters = useCallback(() => {
     setSearch('');
-    setFilterEmployee('All');
-    setFilterAttendance('All');
-    setFilterMonth('All');
+    startTransition(() => {
+      setFilterEmployee('All');
+      setFilterAttendance('All');
+      setFilterMonth('All');
+    });
   }, []);
 
   const activeFilterCount = [
@@ -682,7 +687,12 @@ export default function SalesDashboard() {
           <select
             className={`filter-select ${filterEmployee !== 'All' ? 'active' : ''}`}
             value={filterEmployee}
-            onChange={e => setFilterEmployee(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              startTransition(() => {
+                setFilterEmployee(val);
+              });
+            }}
           >
             {EMPLOYEES.map(e => (
               <option key={e} value={e}>{e === 'All' ? 'All Employees' : e}</option>
@@ -692,7 +702,12 @@ export default function SalesDashboard() {
           <select
             className={`filter-select ${filterAttendance !== 'All' ? 'active' : ''}`}
             value={filterAttendance}
-            onChange={e => setFilterAttendance(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              startTransition(() => {
+                setFilterAttendance(val);
+              });
+            }}
           >
             {ATTENDANCE_OPTIONS.map(a => (
               <option key={a} value={a}>{a === 'All' ? 'All Statuses' : a}</option>
@@ -702,7 +717,12 @@ export default function SalesDashboard() {
           <select
             className={`filter-select ${filterMonth !== 'All' ? 'active' : ''}`}
             value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              startTransition(() => {
+                setFilterMonth(val);
+              });
+            }}
           >
             {monthOptions.map(m => (
               <option key={m} value={m}>{m === 'All' ? 'All Months' : m}</option>
@@ -811,6 +831,10 @@ export default function SalesDashboard() {
           )}
         </div>
       </div>
+
+      {typeof window !== 'undefined' && window.location.search.includes('debugEmail=true') && (
+        <EmailNotificationViewer />
+      )}
     </>
   );
 }

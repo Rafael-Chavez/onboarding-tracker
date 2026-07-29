@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
+import { useState, useEffect, useMemo, useCallback, useTransition, startTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
