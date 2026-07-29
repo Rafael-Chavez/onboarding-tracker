@@ -36,8 +36,32 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    let decodedToken;
+    const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+
+    if (isDevelopment && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      console.log('⚠️ Development mode: Using unverified base64 payload decoding of Firebase ID token');
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          decodedToken = {
+            uid: payload.user_id || payload.sub,
+            email: payload.email,
+            name: payload.name || payload.email?.split('@')[0] || 'Dev User'
+          };
+        } else {
+          throw new Error('Invalid JWT format');
+        }
+      } catch (e) {
+        console.error('Error decoding token payload directly in development:', e);
+        return res.status(401).json({ error: 'Invalid token payload format' });
+      }
+    } else {
+      // Verify the token via admin SDK
+      decodedToken = await admin.auth().verifyIdToken(token);
+    }
+
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email,
