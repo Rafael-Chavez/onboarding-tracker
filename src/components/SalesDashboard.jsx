@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { Icons, iconProps } from './icons';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -210,6 +211,14 @@ export default function SalesDashboard() {
     filterMonth !== 'All',
     search.trim() !== '',
   ].filter(Boolean).length;
+
+  const showDebugEmail = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('debugEmail') === 'true';
+    } catch {
+      return false;
+    }
+  }, []);
 
   return (
     <>
@@ -811,6 +820,7 @@ export default function SalesDashboard() {
           )}
         </div>
       </div>
+      {showDebugEmail && <EmailNotificationViewer />}
     </>
   );
 }
