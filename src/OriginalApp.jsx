@@ -686,7 +686,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
       </div>
 
       {/* Employee Session History Modal */}
-      <div className={isPending ? 'opacity-70 pointer-events-none transition-opacity' : 'transition-opacity'}>
+      <div className={isPending ? 'pointer-events-none' : ''}>
       <EmployeeHistoryModal
         selectedEmployeeHistory={selectedEmployeeHistory}
         setSelectedEmployeeHistory={handleSelectEmployeeHistory}
