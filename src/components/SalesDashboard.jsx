@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { Icons, iconProps } from './icons';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -60,6 +61,16 @@ function AttendanceBadge({ status, lightMode }) {
 export default function SalesDashboard() {
   const [onboardings, setOnboardings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showDebugEmail, setShowDebugEmail] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('debugEmail') === 'true') {
+        setShowDebugEmail(true);
+      }
+    }
+  }, []);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterEmployee, setFilterEmployee] = useState('All');
@@ -810,6 +821,9 @@ export default function SalesDashboard() {
             </div>
           )}
         </div>
+
+        {/* Debug Email Notification Viewer */}
+        {showDebugEmail && <EmailNotificationViewer />}
       </div>
     </>
   );
