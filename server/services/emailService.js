@@ -3,18 +3,47 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-/**
- * Service to handle email sending using nodemailer
- */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+let dynamicTransporter = null;
+let etherealAccount = null;
+
+async function getTransporter() {
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    if (!dynamicTransporter) {
+      dynamicTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+    }
+    return { transporter: dynamicTransporter, isEthereal: false };
+  }
+
+  // fallback to Ethereal
+  if (!dynamicTransporter) {
+    try {
+      console.log('Generating Ethereal SMTP test account...');
+      etherealAccount = await nodemailer.createTestAccount();
+      dynamicTransporter = nodemailer.createTransport({
+        host: etherealAccount.smtp.host,
+        port: etherealAccount.smtp.port,
+        secure: etherealAccount.smtp.secure,
+        auth: {
+          user: etherealAccount.user,
+          pass: etherealAccount.pass,
+        },
+      });
+      console.log('Ethereal SMTP test account generated successfully:', etherealAccount.user);
+    } catch (err) {
+      console.error('Failed to create Ethereal test account:', err);
+      throw err;
+    }
+  }
+  return { transporter: dynamicTransporter, isEthereal: true };
+}
 
 export const EmailService = {
   /**
@@ -33,16 +62,15 @@ export const EmailService = {
    * Verify SMTP connection health
    */
   async verifyConnection() {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      return {
-        success: false,
-        error: 'SMTP credentials missing (SMTP_USER/SMTP_PASS)'
-      };
-    }
-
     try {
+      const { transporter, isEthereal } = await getTransporter();
       await transporter.verify();
-      return { success: true, message: 'SMTP connection verified successfully' };
+      return {
+        success: true,
+        message: isEthereal
+          ? `SMTP connection verified successfully using Ethereal test account (${etherealAccount.user})`
+          : 'SMTP connection verified successfully'
+      };
     } catch (error) {
       console.error('SMTP Verification Error:', error);
       return {
@@ -57,23 +85,15 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
-      return {
-        success: false,
-        error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
-      };
-    }
-
     try {
-      // Verify connection before sending
-      const verify = await this.verifyConnection();
-      if (!verify.success) {
-        return verify;
-      }
+      const { transporter, isEthereal } = await getTransporter();
 
+      // Verify connection before sending
+      await transporter.verify();
+
+      const fromUser = process.env.SMTP_USER || (etherealAccount ? etherealAccount.user : 'test@ethereal.email');
       const info = await transporter.sendMail({
-        from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
+        from: `"Onboarding Tracker" <${fromUser}>`,
         to,
         subject,
         text,
@@ -81,9 +101,19 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+      console.log('Accepted recipients:', info.accepted);
+      console.log('Rejected recipients:', info.rejected);
+
+      let previewUrl = null;
+      if (isEthereal) {
+        previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log('Ethereal Preview URL:', previewUrl);
+      }
+
       return {
         success: true,
         messageId: info.messageId,
+        previewUrl,
         details: {
           accepted: info.accepted,
           rejected: info.rejected,
