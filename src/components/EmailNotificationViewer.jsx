@@ -46,10 +46,11 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.success ? result.previewUrl || result.details?.previewUrl : null
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 10000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -96,11 +97,23 @@ export default function EmailNotificationViewer() {
             statusMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}
           text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
         `}>
-          <div className="flex items-center gap-2">
-            {statusMessage.type === 'success' ? <Icons.CheckCircle {...iconProps} /> :
-             statusMessage.type === 'error' ? <Icons.XCircle {...iconProps} /> :
-             <Icons.Info {...iconProps} />}
-            <span>{statusMessage.message}</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              {statusMessage.type === 'success' ? <Icons.CheckCircle {...iconProps} /> :
+               statusMessage.type === 'error' ? <Icons.XCircle {...iconProps} /> :
+               <Icons.Info {...iconProps} />}
+              <span>{statusMessage.message}</span>
+            </div>
+            {statusMessage.previewUrl && (
+              <a
+                href={statusMessage.previewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-200 underline hover:text-cyan-100 text-xs mt-1 ml-6 inline-block font-bold"
+              >
+                View Sent Email ↗
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -209,6 +222,16 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-400 underline hover:text-cyan-300 font-bold"
+                        >
+                          View Sent Email ↗
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
