@@ -53,7 +53,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
@@ -686,7 +686,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
       </div>
 
       {/* Employee Session History Modal */}
-      <div className={isPending ? 'opacity-70 pointer-events-none transition-opacity' : 'transition-opacity'}>
+      <div>
       <EmployeeHistoryModal
         selectedEmployeeHistory={selectedEmployeeHistory}
         setSelectedEmployeeHistory={handleSelectEmployeeHistory}
