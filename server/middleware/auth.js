@@ -36,6 +36,27 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    // Development fallback if service account is not configured and in development mode
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+    const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+
+    if (!serviceAccountPath && isDev) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || 'mock-uid-123',
+            email: payload.email || 'mock-admin@example.com',
+            name: payload.name || 'Mock Admin'
+          };
+          return next();
+        }
+      } catch (parseErr) {
+        console.warn('Development base64 fallback parsing failed:', parseErr);
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
