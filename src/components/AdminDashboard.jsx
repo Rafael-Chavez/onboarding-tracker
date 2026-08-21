@@ -127,7 +127,7 @@ export default function AdminDashboard() {
         isAdmin={true}
       />
 
-      <div className={`flex-1 overflow-auto transition-opacity duration-300 ${isPending ? 'opacity-50' : 'opacity-100'}`}>
+      <div className="flex-1 overflow-auto">
         {renderContent()}
       </div>
 

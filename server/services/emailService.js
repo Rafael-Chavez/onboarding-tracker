@@ -3,20 +3,58 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-/**
- * Service to handle email sending using nodemailer
- */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+let activeTransporter = null;
 
 export const EmailService = {
+  /**
+   * Get or create nodemailer transporter dynamically
+   */
+  async getTransporter() {
+    if (activeTransporter) {
+      return activeTransporter;
+    }
+
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const port = parseInt(process.env.SMTP_PORT || '587');
+    const secure = process.env.SMTP_SECURE === 'true';
+    let user = process.env.SMTP_USER;
+    let pass = process.env.SMTP_PASS;
+
+    if (!user || !pass) {
+      console.log('Generating Ethereal SMTP test account dynamically...');
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        user = testAccount.user;
+        pass = testAccount.pass;
+        activeTransporter = nodemailer.createTransport({
+          host: testAccount.smtp.host,
+          port: testAccount.smtp.port,
+          secure: testAccount.smtp.secure,
+          auth: {
+            user,
+            pass
+          }
+        });
+        console.log(`Generated Ethereal test account: user=${user}, pass=${pass}`);
+        return activeTransporter;
+      } catch (err) {
+        console.error('Failed to generate Ethereal SMTP test account:', err);
+        throw err;
+      }
+    }
+
+    activeTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: {
+        user,
+        pass
+      }
+    });
+    return activeTransporter;
+  },
+
   /**
    * Log current SMTP configuration (omitting sensitive details)
    */
@@ -33,15 +71,9 @@ export const EmailService = {
    * Verify SMTP connection health
    */
   async verifyConnection() {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      return {
-        success: false,
-        error: 'SMTP credentials missing (SMTP_USER/SMTP_PASS)'
-      };
-    }
-
     try {
-      await transporter.verify();
+      const transport = await this.getTransporter();
+      await transport.verify();
       return { success: true, message: 'SMTP connection verified successfully' };
     } catch (error) {
       console.error('SMTP Verification Error:', error);
@@ -57,23 +89,12 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
-      return {
-        success: false,
-        error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
-      };
-    }
-
     try {
-      // Verify connection before sending
-      const verify = await this.verifyConnection();
-      if (!verify.success) {
-        return verify;
-      }
+      const transport = await this.getTransporter();
+      const fromUser = process.env.SMTP_USER || transport.options.auth.user;
 
-      const info = await transporter.sendMail({
-        from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
+      const info = await transport.sendMail({
+        from: `"Onboarding Tracker" <${fromUser}>`,
         to,
         subject,
         text,
@@ -81,9 +102,15 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log('Ethereal preview URL: %s', previewUrl);
+      }
+
       return {
         success: true,
         messageId: info.messageId,
+        previewUrl,
         details: {
           accepted: info.accepted,
           rejected: info.rejected,

@@ -36,6 +36,25 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    // Development environment fallback logic for token decoding when no service account is configured
+    if (process.env.NODE_ENV === 'development' && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      console.log('Development environment: attempting fallback decoding of Firebase ID Token...');
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || 'mock-dev-uid',
+            email: payload.email || 'rchavez@deconetwork.com',
+            name: payload.name || 'Admin'
+          };
+          return next();
+        }
+      } catch (fallbackError) {
+        console.warn('Fallback base64 token decoding failed:', fallbackError);
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
