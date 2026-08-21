@@ -76,7 +76,8 @@ function Sidebar({ currentView, onViewChange, employeeName, isAdmin = false }) {
       3: 'from-green-500 to-teal-500',
       4: 'from-orange-500 to-red-500',
       5: 'from-indigo-500 to-purple-500',
-      6: 'from-rose-500 to-pink-500'
+      6: 'from-rose-500 to-pink-500',
+      7: 'from-amber-500 to-yellow-500'
     };
     return colorMap[employeeId] || 'from-purple-500 to-pink-500';
   }, []);

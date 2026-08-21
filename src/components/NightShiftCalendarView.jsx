@@ -16,7 +16,8 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500', colorClass: 'primary' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500', colorClass: 'primary' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500', colorClass: 'secondary' },
-    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500', colorClass: 'secondary' }
+    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500', colorClass: 'secondary' },
+    { id: 7, name: 'Leovide', color: 'from-amber-500 to-yellow-500', colorClass: 'tertiary' }
   ]);
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -181,6 +182,21 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
           grid-template-columns: repeat(7, 1fr);
         }
 
+        .day-header {
+          py: 4;
+          text-align: center;
+          font-size: 10px;
+          font-weight: bold;
+          color: rgba(194, 155, 255, 0.9);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+
+        .day-header.non-working-day {
+          opacity: 0.3;
+          color: rgba(194, 155, 255, 0.5);
+        }
+
         .day-cell {
           aspect-ratio: 1;
           min-height: 120px;
@@ -190,6 +206,11 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
           position: relative;
           transition: background-color 0.15s ease;
           cursor: default;
+        }
+
+        .day-cell.non-working-day {
+          background: rgba(0, 0, 0, 0.3);
+          opacity: 0.4;
         }
 
         .day-cell.has-shift {
@@ -258,11 +279,12 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold text-white mb-1">Night Shift Rotation</h3>
-            <p className="text-sm text-purple-300">Active sequence - 4 person rotation (Sun-Thu)</p>
+            <p className="text-sm text-purple-300">Active sequence - 5 person rotation (Sun-Thu)</p>
           </div>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
           {[
+            teamMembers.find(m => m.name === 'Leovide'),
             teamMembers.find(m => m.name === 'Jim'),
             teamMembers.find(m => m.name === 'Steve'),
             teamMembers.find(m => m.name === 'Marc'),
@@ -273,7 +295,7 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
                 <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${member.color}`}></div>
                 <span className="text-sm font-medium text-white">{member.name}</span>
               </div>
-              {idx < 3 && <span className="text-purple-400">→</span>}
+              {idx < 4 && <span className="text-purple-400">→</span>}
             </div>
           ))}
         </div>
@@ -317,11 +339,24 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
           <div className="calendar-main">
             {/* Day Headers */}
             <div className="calendar-grid bg-white/5 border-b border-purple-500/20">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="py-4 text-center text-xs font-bold text-purple-300 uppercase tracking-widest">
-                  {day}
-                </div>
-              ))}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => {
+                const isNonWorkingDay = idx === 5 || idx === 6; // Friday (5) and Saturday (6)
+                return (
+                  <div
+                    key={day}
+                    className={`py-4 text-center text-xs font-bold uppercase tracking-widest ${
+                      isNonWorkingDay
+                        ? 'text-purple-300/30 opacity-40'
+                        : 'text-purple-300'
+                    }`}
+                  >
+                    {day}
+                    {!isNonWorkingDay && (
+                      <div className="text-[8px] text-purple-400/60 mt-0.5 font-normal">WORK</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Calendar Days */}
@@ -332,11 +367,13 @@ export default function NightShiftCalendarView({ employeeId, employeeName }) {
                 const isMyShiftDay = isMyShift(shift);
                 const isTodayDay = isToday(day.fullDate);
                 const isWeek = isCurrentWorkWeek(day.fullDate);
+                const dayOfWeek = day.fullDate.getDay();
+                const isNonWorkingDay = dayOfWeek === 5 || dayOfWeek === 6; // Friday or Saturday
 
                 return (
                   <div
                     key={idx}
-                    className={`day-cell ${!day.isCurrentMonth ? 'inactive' : ''} ${isTodayDay ? 'today' : ''} ${isMyShiftDay ? 'my-shift' : ''} ${isWeek && day.isCurrentMonth ? 'current-week' : ''} ${shift ? 'has-shift' : ''}`}
+                    className={`day-cell ${!day.isCurrentMonth ? 'inactive' : ''} ${isTodayDay ? 'today' : ''} ${isMyShiftDay ? 'my-shift' : ''} ${isWeek && day.isCurrentMonth ? 'current-week' : ''} ${shift ? 'has-shift' : ''} ${isNonWorkingDay ? 'non-working-day' : ''}`}
                     onClick={() => {
                       if (isAdmin && shift && day.isCurrentMonth) {
                         setSelectedShiftForOverride(shift);

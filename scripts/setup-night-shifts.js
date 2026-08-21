@@ -13,14 +13,19 @@ const EMPLOYEES = {
   'Jim': 3,
   'Steve': 5,
   'Marc': 4,
-  'Erick': 6
+  'Erick': 6,
+  'Leovide': 7
 };
 
-// Rotation order: Jim -> Steve -> Marc -> Erick
-const ROTATION = ['Jim', 'Steve', 'Marc', 'Erick'];
+// Rotation order before Leovide: Jim (Jul 27 - Jul 31) -> Steve (Aug 3 - Aug 7) -> Marc (Aug 10 - Aug 14) -> Erick (Aug 17 - Aug 21)
+// Starting August 23: Leovide -> Jim -> Steve -> Marc -> Erick -> (repeats)
+const ROTATION_BEFORE_LEOVIDE = ['Jim', 'Steve', 'Marc', 'Erick'];
+const ROTATION_WITH_LEOVIDE = ['Leovide', 'Jim', 'Steve', 'Marc', 'Erick'];
 
 // Starting week: Sunday July 27, 2026
 const START_DATE = new Date('2026-07-27T00:00:00');
+// Leovide starts: Sunday August 23, 2026 (Sun Aug 23 - Thu Aug 27)
+const LEOVIDE_START_DATE = new Date('2026-08-23T00:00:00');
 // End date: December 31, 2026
 const END_DATE = new Date('2026-12-31T00:00:00');
 
@@ -55,12 +60,18 @@ async function setupNightShifts() {
 
   const shifts = [];
   let currentDate = new Date(START_DATE);
-  let rotationIndex = 0; // Start with Jim
+  let rotationIndex = 0;
 
   console.log('Generating shifts from July 27 through December 31, 2026...\n');
+  console.log('Phase 1: July 27 - August 22 (4-person rotation)');
+  console.log('Phase 2: August 23 onwards (5-person rotation with Leovide)\n');
 
   while (currentDate <= END_DATE) {
-    const employeeName = ROTATION[rotationIndex];
+    // Determine which rotation to use
+    const useLeovideRotation = currentDate >= LEOVIDE_START_DATE;
+    const rotation = useLeovideRotation ? ROTATION_WITH_LEOVIDE : ROTATION_BEFORE_LEOVIDE;
+
+    const employeeName = rotation[rotationIndex];
     const employeeId = EMPLOYEES[employeeName];
     const weekStart = new Date(currentDate);
 
@@ -78,13 +89,13 @@ async function setupNightShifts() {
       }
     }
 
-    console.log(`Week of ${formatDate(weekStart)}: ${employeeName}`);
+    console.log(`Week of ${formatDate(weekStart)}: ${employeeName}${useLeovideRotation && employeeName === 'Leovide' ? ' ⭐ (NEW)' : ''}`);
 
     // Move to next Sunday
     currentDate.setDate(currentDate.getDate() + 7);
 
     // Rotate to next employee
-    rotationIndex = (rotationIndex + 1) % ROTATION.length;
+    rotationIndex = (rotationIndex + 1) % rotation.length;
   }
 
   // Insert all shifts

@@ -24,7 +24,8 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
     { id: 3, name: 'Jim', color: 'from-green-500 to-teal-500' },
     { id: 4, name: 'Marc', color: 'from-orange-500 to-red-500' },
     { id: 5, name: 'Steve', color: 'from-indigo-500 to-purple-500' },
-    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' }
+    { id: 6, name: 'Erick', color: 'from-rose-500 to-pink-500' },
+    { id: 7, name: 'Leovide', color: 'from-amber-500 to-yellow-500' }
   ])
   
   // Load data from localStorage
