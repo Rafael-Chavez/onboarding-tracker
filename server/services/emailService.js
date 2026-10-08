@@ -6,15 +6,52 @@ dotenv.config();
 /**
  * Service to handle email sending using nodemailer
  */
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+let etherealTransporter = null;
+let etherealUser = null;
+
+async function getTransporter() {
+  const hasCustomSmtp = process.env.SMTP_USER && process.env.SMTP_PASS;
+
+  if (hasCustomSmtp) {
+    const customTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    return {
+      transporter: customTransporter,
+      fromAddress: process.env.SMTP_USER,
+      isEthereal: false,
+    };
+  }
+
+  // Fallback to Ethereal test account for dev/testing
+  if (!etherealTransporter) {
+    console.log('📧 No custom SMTP credentials found. Creating Ethereal SMTP test account...');
+    const testAccount = await nodemailer.createTestAccount();
+    etherealUser = testAccount.user;
+    etherealTransporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    console.log(`📧 Ethereal SMTP test account created: ${testAccount.user}`);
+  }
+
+  return {
+    transporter: etherealTransporter,
+    fromAddress: etherealUser,
+    isEthereal: true,
+  };
+}
 
 export const EmailService = {
   /**
@@ -33,16 +70,16 @@ export const EmailService = {
    * Verify SMTP connection health
    */
   async verifyConnection() {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      return {
-        success: false,
-        error: 'SMTP credentials missing (SMTP_USER/SMTP_PASS)'
-      };
-    }
-
     try {
+      const { transporter, isEthereal } = await getTransporter();
       await transporter.verify();
-      return { success: true, message: 'SMTP connection verified successfully' };
+      return {
+        success: true,
+        message: isEthereal
+          ? 'Ethereal SMTP test connection verified successfully'
+          : 'SMTP connection verified successfully',
+        isEthereal
+      };
     } catch (error) {
       console.error('SMTP Verification Error:', error);
       return {
@@ -57,23 +94,11 @@ export const EmailService = {
    * @param {Object} options - Email options (to, subject, text, html)
    */
   async sendEmail({ to, subject, text, html }) {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('Email Error: SMTP credentials not configured in environment variables.');
-      return {
-        success: false,
-        error: 'Email service is not configured on the server. Please set SMTP_USER and SMTP_PASS.'
-      };
-    }
-
     try {
-      // Verify connection before sending
-      const verify = await this.verifyConnection();
-      if (!verify.success) {
-        return verify;
-      }
+      const { transporter, fromAddress, isEthereal } = await getTransporter();
 
       const info = await transporter.sendMail({
-        from: `"Onboarding Tracker" <${process.env.SMTP_USER}>`,
+        from: `"Onboarding Tracker" <${fromAddress}>`,
         to,
         subject,
         text,
@@ -81,13 +106,22 @@ export const EmailService = {
       });
 
       console.log('Message sent: %s', info.messageId);
+
+      let previewUrl = null;
+      if (isEthereal) {
+        previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log('Preview URL: %s', previewUrl);
+      }
+
       return {
         success: true,
         messageId: info.messageId,
+        previewUrl,
         details: {
           accepted: info.accepted,
           rejected: info.rejected,
-          response: info.response
+          response: info.response,
+          isEthereal
         }
       };
     } catch (error) {

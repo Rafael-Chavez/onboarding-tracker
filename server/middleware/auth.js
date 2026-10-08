@@ -36,6 +36,27 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    // Check if Firebase Admin is not fully initialized or service account is missing
+    if (!admin.apps.length || !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        // Fallback for development mode when service account is not provided
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            req.user = {
+              uid: payload.user_id || payload.sub || 'dev-user',
+              email: payload.email || 'dev@example.com',
+              name: payload.name || 'Dev User'
+            };
+            return next();
+          }
+        } catch (devError) {
+          console.warn('Dev token decode failed:', devError);
+        }
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
