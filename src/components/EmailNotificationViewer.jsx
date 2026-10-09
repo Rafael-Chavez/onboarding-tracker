@@ -46,7 +46,11 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success
+        ? result.previewUrl
+          ? 'Email sent via Ethereal! Click "View Email" in log.'
+          : 'Email sent successfully!'
+        : `Failed: ${result.error}`
     });
 
     setTimeout(() => setStatusMessage(null), 5000);
@@ -209,6 +213,16 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/30 px-2 py-0.5 rounded text-[10px] font-semibold transition-colors flex items-center gap-1"
+                        >
+                          View Email 🔗
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
