@@ -2,8 +2,6 @@ import admin from 'firebase-admin';
 import { readFileSync } from 'fs';
 
 // Initialize Firebase Admin SDK
-// You'll need to download your service account key from Firebase Console
-// and set the path in environment variable
 if (!admin.apps.length) {
   try {
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -15,8 +13,6 @@ if (!admin.apps.length) {
       });
       console.log('Firebase Admin SDK initialized successfully');
     } else {
-      // For development, you can initialize without credentials
-      // but token verification will not work
       console.warn('Firebase Admin SDK not initialized - No service account provided');
       console.warn('Set FIREBASE_SERVICE_ACCOUNT_PATH in .env to enable authentication');
     }
@@ -36,15 +32,45 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name
-    };
+    if (admin.apps.length > 0) {
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = {
+          uid: decodedToken.uid,
+          email: decodedToken.email,
+          name: decodedToken.name
+        };
+        return next();
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development' || !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+          console.warn('Firebase token verification failed, falling back to development token decoding.');
+        } else {
+          throw err;
+        }
+      }
+    }
 
-    next();
+    // Development fallback decoding when service account is not present
+    if (process.env.NODE_ENV === 'development' || !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || 'dev-user',
+            email: payload.email || 'dev@example.com',
+            name: payload.name || 'Dev User'
+          };
+        } else {
+          req.user = { uid: 'dev-user', email: 'dev@example.com', name: 'Dev User' };
+        }
+      } catch (e) {
+        req.user = { uid: 'dev-user', email: 'dev@example.com', name: 'Dev User' };
+      }
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Firebase Admin SDK not initialized on server' });
   } catch (error) {
     console.error('Error verifying token:', error);
     return res.status(401).json({ error: 'Invalid or expired token' });

@@ -47,7 +47,7 @@ export default function AdminShiftOverrideModal({ isOpen, onClose, shift, employ
       if (error) throw error;
 
       // Send email notification
-      await EmailNotificationService.notifyShiftOverride({
+      const emailResult = await EmailNotificationService.notifyShiftOverride({
         originalEmployee: currentEmployee.name,
         newEmployee: newEmployee.name,
         shiftDate: shift.shift_date,
@@ -55,7 +55,11 @@ export default function AdminShiftOverrideModal({ isOpen, onClose, shift, employ
         adminName: adminName || 'Admin'
       });
 
-      alert(`Shift successfully reassigned to ${newEmployee.name}!\n\nAn email notification has been sent to the admin.`);
+      if (emailResult.success) {
+        alert(`Shift successfully reassigned to ${newEmployee.name}!\n\nAn email notification has been sent to the admin.`);
+      } else {
+        alert(`Shift successfully reassigned to ${newEmployee.name}!\n\nNote: Email notification status: ${emailResult.error || 'Delivery failed'}.`);
+      }
       onClose();
       setSelectedEmployeeId('');
       setReason('');
