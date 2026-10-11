@@ -95,7 +95,7 @@ export default function ShiftTradeModal({
       if (error) throw error;
 
       // Send email notification
-      await EmailNotificationService.notifyShiftTrade({
+      const emailResult = await EmailNotificationService.notifyShiftTrade({
         initiatorName: myEmployeeName,
         respondentName: targetEmployee.name,
         initiatorShiftDate: myFirstShift.shift_date,
@@ -103,7 +103,11 @@ export default function ShiftTradeModal({
         status: 'pending'
       });
 
-      alert(`Trade request sent to ${targetEmployee.name}!\n\nAn email notification has been sent to the admin.`);
+      if (emailResult.success) {
+        alert(`Trade request sent to ${targetEmployee.name}!\n\nAn email notification has been sent to the admin.`);
+      } else {
+        alert(`Trade request sent to ${targetEmployee.name}!\n\nNote: Email notification failed to send (${emailResult.error || 'Unknown error'}).`);
+      }
       onClose();
       setSelectedMyWeek(null);
       setTradeMessage('');

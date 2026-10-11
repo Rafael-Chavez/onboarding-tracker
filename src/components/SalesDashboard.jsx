@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
@@ -210,6 +211,8 @@ export default function SalesDashboard() {
     filterMonth !== 'All',
     search.trim() !== '',
   ].filter(Boolean).length;
+
+  const showDebugEmail = new URLSearchParams(window.location.search).get('debugEmail') === 'true';
 
   return (
     <>
@@ -810,6 +813,8 @@ export default function SalesDashboard() {
             </div>
           )}
         </div>
+
+        {showDebugEmail && <EmailNotificationViewer />}
       </div>
     </>
   );

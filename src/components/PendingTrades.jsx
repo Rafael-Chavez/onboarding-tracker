@@ -109,7 +109,7 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
       if (respondentWeekError) throw respondentWeekError;
 
       // Send email notification for accepted trade
-      await EmailNotificationService.notifyShiftTrade({
+      const emailResult = await EmailNotificationService.notifyShiftTrade({
         initiatorName: trade.initiator.name,
         respondentName: trade.respondent.name,
         initiatorShiftDate: trade.initiator_shift.shift_date,
@@ -117,7 +117,11 @@ export default function PendingTrades({ employeeId, employeeName, onTradeUpdate 
         status: 'accepted'
       });
 
-      alert('Trade accepted successfully! All shifts for both weeks have been swapped.\n\nAn email notification has been sent to the admin.');
+      if (emailResult.success) {
+        alert('Trade accepted successfully! All shifts for both weeks have been swapped.\n\nAn email notification has been sent to the admin.');
+      } else {
+        alert(`Trade accepted successfully! All shifts for both weeks have been swapped.\n\nNote: Email notification failed to send (${emailResult.error || 'Unknown error'}).`);
+      }
       loadTrades();
       if (onTradeUpdate) onTradeUpdate();
     } catch (error) {
