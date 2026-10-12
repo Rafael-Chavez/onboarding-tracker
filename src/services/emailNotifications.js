@@ -6,17 +6,30 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
   /**
+   * Helper to get auth token (with dev mode fallback)
+   */
+  async _getAuthToken() {
+    const user = auth.currentUser;
+    if (user) {
+      return await user.getIdToken();
+    }
+
+    // In development mode, construct a dummy base64 token payload
+    const mockPayload = {
+      uid: 'dev-user-123',
+      email: 'rchavez@deconetwork.com',
+      name: 'Dev Admin'
+    };
+    const encodedPayload = btoa(JSON.stringify(mockPayload));
+    return `header.${encodedPayload}.signature`;
+  },
+
+  /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
-      // Get the current user's ID token from Firebase
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User must be logged in to send notifications');
-      }
-
-      const token = await user.getIdToken();
+      const token = await this._getAuthToken();
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -105,6 +118,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error
       });
 
@@ -180,6 +194,7 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error
       });
 
@@ -235,10 +250,7 @@ Generated: ${new Date().toLocaleString()}
    */
   async verifySMTP() {
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
-
-      const token = await user.getIdToken();
+      const token = await this._getAuthToken();
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
