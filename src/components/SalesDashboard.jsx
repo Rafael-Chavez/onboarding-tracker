@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
@@ -211,8 +212,11 @@ export default function SalesDashboard() {
     search.trim() !== '',
   ].filter(Boolean).length;
 
+  const showDebugEmail = new URLSearchParams(window.location.search).get('debugEmail') === 'true';
+
   return (
     <>
+      {showDebugEmail && <EmailNotificationViewer />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap');
 

@@ -36,15 +36,44 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name
-    };
+    // If Firebase Admin SDK is initialized, verify token properly
+    if (admin.apps.length && process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        name: decodedToken.name
+      };
+      return next();
+    }
 
-    next();
+    // Development mode fallback when FIREBASE_SERVICE_ACCOUNT_PATH is not set
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || 'dev-user-123',
+            email: payload.email || 'rchavez@deconetwork.com',
+            name: payload.name || 'Dev Admin'
+          };
+          return next();
+        }
+      } catch (e) {
+        console.warn('Fallback token decoding error:', e.message);
+      }
+
+      // Default mock user for local testing if token parsing fails
+      req.user = {
+        uid: 'dev-user-123',
+        email: 'rchavez@deconetwork.com',
+        name: 'Dev Admin'
+      };
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Firebase Admin SDK not initialized and not in development mode' });
   } catch (error) {
     console.error('Error verifying token:', error);
     return res.status(401).json({ error: 'Invalid or expired token' });
