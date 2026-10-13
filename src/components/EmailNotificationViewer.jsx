@@ -46,7 +46,8 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.previewUrl || null
     });
 
     setTimeout(() => setStatusMessage(null), 5000);
@@ -92,16 +93,26 @@ export default function EmailNotificationViewer() {
       {/* Status Toasts */}
       {statusMessage && (
         <div className={`
-          ${statusMessage.type === 'success' ? 'bg-green-500' :
+          ${statusMessage.type === 'success' ? 'bg-green-600' :
             statusMessage.type === 'error' ? 'bg-red-500' : 'bg-blue-500'}
-          text-white px-4 py-2 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20
+          text-white px-4 py-3 rounded-lg shadow-lg animate-fade-in max-w-sm text-sm border border-white/20 flex flex-col gap-1
         `}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 font-medium">
             {statusMessage.type === 'success' ? <Icons.CheckCircle {...iconProps} /> :
              statusMessage.type === 'error' ? <Icons.XCircle {...iconProps} /> :
              <Icons.Info {...iconProps} />}
             <span>{statusMessage.message}</span>
           </div>
+          {statusMessage.previewUrl && (
+            <a
+              href={statusMessage.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs text-cyan-200 underline hover:text-white font-mono"
+            >
+              <span>🔗 View Sent Email Preview</span>
+            </a>
+          )}
         </div>
       )}
 
@@ -209,6 +220,16 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-300 hover:text-cyan-100 underline text-[11px] font-mono flex items-center gap-1"
+                        >
+                          🔗 View Preview
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
