@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
@@ -70,6 +71,9 @@ export default function SalesDashboard() {
   });
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const showDebugEmail = searchParams.get('debugEmail') === 'true';
 
   const toggleTheme = useCallback(() => {
     setLightMode(prev => {
@@ -810,6 +814,8 @@ export default function SalesDashboard() {
             </div>
           )}
         </div>
+
+        {showDebugEmail && <EmailNotificationViewer />}
       </div>
     </>
   );
