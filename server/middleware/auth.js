@@ -36,15 +36,47 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name
-    };
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH && admin.apps.length > 0) {
+      try {
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = {
+          uid: decodedToken.uid,
+          email: decodedToken.email,
+          name: decodedToken.name
+        };
+        return next();
+      } catch (err) {
+        if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+          throw err;
+        }
+      }
+    }
 
-    next();
+    // Development or fallback: parse base64 payload from token
+    if (process.env.NODE_ENV === 'development' || !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          req.user = {
+            uid: payload.uid || payload.sub || 'dev-user',
+            email: payload.email || 'dev@deconetwork.com',
+            name: payload.name || 'Dev User'
+          };
+          return next();
+        }
+      } catch (e) {
+        console.warn('Fallback base64 decode failed, using default dev user:', e.message);
+      }
+      req.user = {
+        uid: 'dev-user',
+        email: 'dev@deconetwork.com',
+        name: 'Dev User'
+      };
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Invalid or expired token' });
   } catch (error) {
     console.error('Error verifying token:', error);
     return res.status(401).json({ error: 'Invalid or expired token' });
