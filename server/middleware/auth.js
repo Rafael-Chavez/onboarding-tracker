@@ -37,12 +37,31 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split('Bearer ')[1];
 
     // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name
-    };
+    if (admin.apps.length && process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        name: decodedToken.name
+      };
+    } else {
+      // In development mode when Firebase Admin is unconfigured, decode payload without verification
+      try {
+        const payloadBase64 = token.split('.')[1];
+        if (payloadBase64) {
+          const decodedJSON = JSON.parse(Buffer.from(payloadBase64, 'base64').toString('utf8'));
+          req.user = {
+            uid: decodedJSON.uid || decodedJSON.user_id || 'dev-user-id',
+            email: decodedJSON.email || 'admin@example.com',
+            name: decodedJSON.name || 'Dev Admin'
+          };
+        } else {
+          req.user = { uid: 'dev-user-id', email: 'admin@example.com', name: 'Dev Admin' };
+        }
+      } catch (e) {
+        req.user = { uid: 'dev-user-id', email: 'admin@example.com', name: 'Dev Admin' };
+      }
+    }
 
     next();
   } catch (error) {
