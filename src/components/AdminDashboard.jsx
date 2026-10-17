@@ -4,14 +4,13 @@ import { SupabaseService } from '../services/supabase';
 import OriginalApp from '../OriginalApp';
 import NightShiftCalendarView from './NightShiftCalendarView';
 import EmailNotificationViewer from './EmailNotificationViewer';
-import PendingApprovalsAlert from './PendingApprovalsAlert';
 import SalesDashboard from './SalesDashboard';
 import Sidebar from './Sidebar';
 
 export default function AdminDashboard() {
   const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [onboardings, setOnboardings] = useState([]);
   const fetchTimeoutRef = useRef(null);
 
@@ -19,7 +18,7 @@ export default function AdminDashboard() {
     startTransition(() => {
       setCurrentView(newView);
     });
-  }, []);
+  }, [startTransition]);
 
   // Load onboardings for pending approvals
   const fetchOnboardings = useCallback(async () => {
@@ -127,7 +126,7 @@ export default function AdminDashboard() {
         isAdmin={true}
       />
 
-      <div className={`flex-1 overflow-auto transition-opacity duration-300 ${isPending ? 'opacity-50' : 'opacity-100'}`}>
+      <div className="flex-1 overflow-auto">
         {renderContent()}
       </div>
 

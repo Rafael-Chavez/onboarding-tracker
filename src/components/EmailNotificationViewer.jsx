@@ -46,10 +46,12 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success
+        ? 'Email sent successfully!' + (result.previewUrl ? ' Preview available in log.' : '')
+        : `Failed: ${result.error}`
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 6000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -189,6 +191,11 @@ export default function EmailNotificationViewer() {
                             FAILED
                           </span>
                         )}
+                        {notification.backendSent === true && (
+                          <span className="bg-green-500/20 text-green-300 text-[10px] px-1.5 py-0.5 rounded border border-green-500/30 font-bold uppercase tracking-tight">
+                            SENT
+                          </span>
+                        )}
                       </div>
                       <span className="text-white/40 text-xs">
                         {formatTimestamp(notification.timestamp)}
@@ -204,11 +211,21 @@ export default function EmailNotificationViewer() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between text-xs mt-2">
                       <div className="flex items-center gap-2">
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-[11px] px-2.5 py-1 rounded border border-cyan-400/40 transition-colors font-semibold flex items-center gap-1"
+                        >
+                          <span>🔗</span> View Sent Email
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
