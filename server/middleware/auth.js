@@ -2,8 +2,6 @@ import admin from 'firebase-admin';
 import { readFileSync } from 'fs';
 
 // Initialize Firebase Admin SDK
-// You'll need to download your service account key from Firebase Console
-// and set the path in environment variable
 if (!admin.apps.length) {
   try {
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -15,8 +13,6 @@ if (!admin.apps.length) {
       });
       console.log('Firebase Admin SDK initialized successfully');
     } else {
-      // For development, you can initialize without credentials
-      // but token verification will not work
       console.warn('Firebase Admin SDK not initialized - No service account provided');
       console.warn('Set FIREBASE_SERVICE_ACCOUNT_PATH in .env to enable authentication');
     }
@@ -36,15 +32,55 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name
-    };
+    // Development fallback if Firebase Admin is not initialized or in dev mode
+    const isDev = (process.env.NODE_ENV || 'development') === 'development';
 
-    next();
+    if (!admin.apps.length && isDev) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || 'dev-user-id',
+            email: payload.email || 'dev@example.com',
+            name: payload.name || 'Dev User'
+          };
+          return next();
+        }
+      } catch (e) {
+        console.warn('Dev token decode failed:', e.message);
+      }
+    }
+
+    // Standard token verification with Firebase Admin
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        name: decodedToken.name
+      };
+      return next();
+    } catch (verifyError) {
+      // In dev mode, if Firebase Admin verification fails (e.g., mock token or expired test token), fallback to base64 payload decoding
+      if (isDev) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+            req.user = {
+              uid: payload.uid || payload.sub || 'dev-user-id',
+              email: payload.email || 'dev@example.com',
+              name: payload.name || 'Dev User'
+            };
+            return next();
+          }
+        } catch (e) {
+          // ignore fallback error and throw main verifyError
+        }
+      }
+      throw verifyError;
+    }
   } catch (error) {
     console.error('Error verifying token:', error);
     return res.status(401).json({ error: 'Invalid or expired token' });

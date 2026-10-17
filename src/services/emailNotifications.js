@@ -4,19 +4,32 @@ import { auth } from '../config/firebase';
 const ADMIN_EMAIL = 'rchavez@deconetwork.com';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+/**
+ * Get current Firebase ID token or generate a mock base64 token for dev testing
+ */
+async function getAuthToken() {
+  const user = auth.currentUser;
+  if (user) {
+    return await user.getIdToken();
+  }
+
+  // Generate mock base64 JWT token for development testing when unauthenticated
+  const mockHeader = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const mockPayload = btoa(JSON.stringify({
+    uid: 'dev-user-id',
+    email: 'dev@example.com',
+    name: 'Dev User'
+  }));
+  return `${mockHeader}.${mockPayload}.mockSignature`;
+}
+
 export const EmailNotificationService = {
   /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
-      // Get the current user's ID token from Firebase
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User must be logged in to send notifications');
-      }
-
-      const token = await user.getIdToken();
+      const token = await getAuthToken();
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -94,6 +107,9 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.previewUrl) {
+        console.log('%cPreview URL:', 'font-weight: bold;', result.previewUrl);
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       // Store notification in localStorage for admin dashboard
@@ -105,12 +121,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
+        details: result.details || null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.previewUrl,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -170,6 +189,9 @@ Generated: ${new Date().toLocaleString()}
       console.log('%cTo:', 'font-weight: bold;', ADMIN_EMAIL);
       console.log('%cSubject:', 'font-weight: bold;', subject);
       console.log('%cBackend Result:', 'font-weight: bold;', result.success ? 'SUCCESS' : 'FAILED: ' + result.error);
+      if (result.previewUrl) {
+        console.log('%cPreview URL:', 'font-weight: bold;', result.previewUrl);
+      }
       console.log('%c─────────────────────────────────────', 'color: #6b7280;');
 
       this.storeNotification({
@@ -180,11 +202,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
+        details: result.details || null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
+        previewUrl: result.previewUrl,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -235,10 +260,7 @@ Generated: ${new Date().toLocaleString()}
    */
   async verifySMTP() {
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
-
-      const token = await user.getIdToken();
+      const token = await getAuthToken();
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`

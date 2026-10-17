@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
-import { Icons, iconProps } from './icons';
+import EmailNotificationViewer from './EmailNotificationViewer';
+import { Icons } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -71,6 +72,8 @@ export default function SalesDashboard() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
+  const showEmailViewer = typeof window !== 'undefined' && window.location.search.includes('debugEmail=true');
+
   const toggleTheme = useCallback(() => {
     setLightMode(prev => {
       const next = !prev;
@@ -139,23 +142,6 @@ export default function SalesDashboard() {
         ...o,
         sessionNumber: sessionNumberMap[o.id] || 1
       }));
-
-      // Debug: Check first few records
-      console.log('Sample records being synced:');
-      onboardingsWithCorrectSessions.slice(0, 3).forEach((o, i) => {
-        console.log(`Record ${i + 1}:`, {
-          date: o.date,
-          employee: o.employeeName,
-          client: o.clientName,
-          account: o.accountNumber,
-          session: o.sessionNumber,
-          attendance: o.attendance,
-          attendanceType: typeof o.attendance,
-          attendanceIsNull: o.attendance === null,
-          attendanceIsUndefined: o.attendance === undefined,
-          fullObject: o
-        });
-      });
 
       setSyncMessage(`Syncing ${onboardingsWithCorrectSessions.length} records...`);
 
@@ -589,7 +575,7 @@ export default function SalesDashboard() {
         }
 
         .animate-pulse-subtle {
-          animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+          animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
 
         .status-val {
@@ -810,6 +796,9 @@ export default function SalesDashboard() {
             </div>
           )}
         </div>
+
+        {/* Diagnostic Email Viewer */}
+        {showEmailViewer && <EmailNotificationViewer />}
       </div>
     </>
   );
