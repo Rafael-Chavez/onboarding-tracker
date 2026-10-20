@@ -8,15 +8,30 @@ export const EmailNotificationService = {
   /**
    * Internal method to send email via backend API
    */
+  async _getAuthToken() {
+    const user = auth.currentUser;
+    if (user) {
+      return await user.getIdToken();
+    }
+    // In local development mode, if no user is logged in, generate a mock JWT for unauthenticated testing
+    if (import.meta.env.DEV) {
+      const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+      const payload = btoa(JSON.stringify({
+        uid: 'dev_test_user',
+        email: 'dev_test@example.com',
+        name: 'Dev Test User'
+      }));
+      return `${header}.${payload}.mock_signature`;
+    }
+    throw new Error('User must be logged in to send notifications');
+  },
+
+  /**
+   * Internal method to send email via backend API
+   */
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
-      // Get the current user's ID token from Firebase
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User must be logged in to send notifications');
-      }
-
-      const token = await user.getIdToken();
+      const token = await this._getAuthToken();
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -105,12 +120,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -180,11 +197,13 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error
       });
 
       return {
         success: result.success,
+        previewUrl: result.previewUrl || null,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -235,10 +254,7 @@ Generated: ${new Date().toLocaleString()}
    */
   async verifySMTP() {
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
-
-      const token = await user.getIdToken();
+      const token = await this._getAuthToken();
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
