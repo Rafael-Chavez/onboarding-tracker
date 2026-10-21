@@ -36,6 +36,25 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    if (!serviceAccountPath && process.env.NODE_ENV === 'development') {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub,
+            email: payload.email,
+            name: payload.name || payload.email?.split('@')[0]
+          };
+          return next();
+        }
+      } catch (err) {
+        console.error('Fallback token decoding failed:', err);
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
