@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
 import { Icons, iconProps } from './icons';
+import EmailNotificationViewer from './EmailNotificationViewer';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
 const ATTENDANCE_OPTIONS = ['All', 'completed', 'pending', 'no-show', 'rescheduled', 'cancelled'];
@@ -58,6 +59,15 @@ function AttendanceBadge({ status, lightMode }) {
 }
 
 export default function SalesDashboard() {
+  const showDebugEmail = useMemo(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('debugEmail') === 'true';
+    } catch {
+      return false;
+    }
+  }, []);
+
   const [onboardings, setOnboardings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -811,6 +821,7 @@ export default function SalesDashboard() {
           )}
         </div>
       </div>
+      {showDebugEmail && <EmailNotificationViewer />}
     </>
   );
 }
