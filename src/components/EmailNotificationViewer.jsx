@@ -46,10 +46,24 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? (
+        <div className="flex flex-col gap-1">
+          <span>Email sent successfully!</span>
+          {result.previewUrl && (
+            <a
+              href={result.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-cyan-200 hover:text-cyan-100 font-bold text-xs"
+            >
+              View Sent Email ↗
+            </a>
+          )}
+        </div>
+      ) : `Failed: ${result.error}`
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 10000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -209,7 +223,28 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-200 border border-cyan-500/30 font-bold px-2 py-1 rounded transition-colors"
+                        >
+                          View Sent Email ↗
+                        </a>
+                      )}
                     </div>
+                    {notification.details && (
+                      <div className="mt-2 text-white/50 bg-black/10 p-2 rounded text-[10px] font-mono break-words border border-white/5 space-y-1">
+                        <div><strong className="text-white/70">Response:</strong> {notification.details.response}</div>
+                        {notification.details.accepted?.length > 0 && (
+                          <div><strong className="text-white/70">Accepted:</strong> {notification.details.accepted.join(', ')}</div>
+                        )}
+                        {notification.details.rejected?.length > 0 && (
+                          <div><strong className="text-white/70">Rejected:</strong> {notification.details.rejected.join(', ')}</div>
+                        )}
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}

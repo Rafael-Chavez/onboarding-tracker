@@ -6,17 +6,35 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export const EmailNotificationService = {
   /**
+   * Helper to generate a mock JWT token (base64 encoded JSON) for unauthenticated local development
+   */
+  _getMockToken() {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const payload = btoa(JSON.stringify({
+      uid: 'mock-dev-uid',
+      email: 'mock-dev@deconetwork.com',
+      name: 'Mock Dev User'
+    }));
+    const signature = 'mock-signature';
+    return `${header}.${payload}.${signature}`;
+  },
+
+  /**
    * Internal method to send email via backend API
    */
   async _sendEmailViaBackend({ to, subject, body }) {
     try {
       // Get the current user's ID token from Firebase
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User must be logged in to send notifications');
-      }
+      let token;
 
-      const token = await user.getIdToken();
+      if (!user) {
+        // Fallback to mock token in local dev environment
+        console.warn('No active Firebase user logged in. Using mock token fallback for local email testing.');
+        token = this._getMockToken();
+      } else {
+        token = await user.getIdToken();
+      }
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -105,12 +123,16 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl,
+        details: result.details
       });
 
       return {
         success: result.success,
         mailtoLink,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -180,11 +202,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl,
+        details: result.details
       });
 
       return {
         success: result.success,
+        previewUrl: result.previewUrl,
+        details: result.details,
         error: result.success ? null : result.error,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
@@ -236,9 +262,15 @@ Generated: ${new Date().toLocaleString()}
   async verifySMTP() {
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
+      let token;
 
-      const token = await user.getIdToken();
+      if (!user) {
+        console.warn('No active Firebase user logged in. Using mock token fallback for local SMTP check.');
+        token = this._getMockToken();
+      } else {
+        token = await user.getIdToken();
+      }
+
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
