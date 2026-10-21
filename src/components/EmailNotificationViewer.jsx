@@ -46,7 +46,8 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.previewUrl || null
     });
 
     setTimeout(() => setStatusMessage(null), 5000);
@@ -100,7 +101,21 @@ export default function EmailNotificationViewer() {
             {statusMessage.type === 'success' ? <Icons.CheckCircle {...iconProps} /> :
              statusMessage.type === 'error' ? <Icons.XCircle {...iconProps} /> :
              <Icons.Info {...iconProps} />}
-            <span>{statusMessage.message}</span>
+            <div>
+              <span>{statusMessage.message}</span>
+              {statusMessage.previewUrl && (
+                <div className="mt-1">
+                  <a
+                    href={statusMessage.previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-xs font-bold hover:text-blue-100 flex items-center gap-1"
+                  >
+                    View Sent Email
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -209,6 +224,16 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-300 hover:text-cyan-200 underline font-semibold flex items-center gap-1"
+                        >
+                          View Sent Email
+                        </a>
+                      )}
                     </div>
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">

@@ -12,11 +12,26 @@ export const EmailNotificationService = {
     try {
       // Get the current user's ID token from Firebase
       const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User must be logged in to send notifications');
-      }
+      let token;
 
-      const token = await user.getIdToken();
+      if (!user) {
+        // Fallback for development/unauthenticated testing on /sales?debugEmail=true
+        const isDevelopment = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        if (isDevelopment) {
+          const mockPayload = {
+            user_id: 'mock-dev-uid',
+            email: 'dev-user@example.com',
+            name: 'Dev User'
+          };
+          const base64Payload = btoa(JSON.stringify(mockPayload));
+          token = `header.${base64Payload}.signature`;
+          console.log('⚠️ Development mode: Using mock token for unauthenticated testing');
+        } else {
+          throw new Error('User must be logged in to send notifications');
+        }
+      } else {
+        token = await user.getIdToken();
+      }
 
       const response = await fetch(`${API_URL}/email/send`, {
         method: 'POST',
@@ -105,13 +120,15 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         tradeDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl || null
       });
 
       return {
         success: result.success,
         mailtoLink,
         error: result.success ? null : result.error,
+        previewUrl: result.previewUrl || null,
         message: result.success ? 'Email sent successfully' : `Failed: ${result.error || 'Unknown error'}`
       };
     } catch (error) {
@@ -180,12 +197,14 @@ Generated: ${new Date().toLocaleString()}
         timestamp: new Date().toISOString(),
         overrideDetails,
         backendSent: result.success,
-        error: result.success ? null : result.error
+        error: result.success ? null : result.error,
+        previewUrl: result.previewUrl || null
       });
 
       return {
         success: result.success,
         error: result.success ? null : result.error,
+        previewUrl: result.previewUrl || null,
         message: result.success ? 'Override notification sent' : `Failed: ${result.error || 'Unknown error'}`
       };
     } catch (error) {
@@ -236,9 +255,25 @@ Generated: ${new Date().toLocaleString()}
   async verifySMTP() {
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('User must be logged in');
+      let token;
 
-      const token = await user.getIdToken();
+      if (!user) {
+        const isDevelopment = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        if (isDevelopment) {
+          const mockPayload = {
+            user_id: 'mock-dev-uid',
+            email: 'dev-user@example.com',
+            name: 'Dev User'
+          };
+          const base64Payload = btoa(JSON.stringify(mockPayload));
+          token = `header.${base64Payload}.signature`;
+        } else {
+          throw new Error('User must be logged in');
+        }
+      } else {
+        token = await user.getIdToken();
+      }
+
       const response = await fetch(`${API_URL}/email/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
