@@ -11,7 +11,7 @@ import Sidebar from './Sidebar';
 export default function AdminDashboard() {
   const { currentUser, employeeId } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [onboardings, setOnboardings] = useState([]);
   const fetchTimeoutRef = useRef(null);
 
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
         isAdmin={true}
       />
 
-      <div className={`flex-1 overflow-auto transition-opacity duration-300 ${isPending ? 'opacity-50' : 'opacity-100'}`}>
+      <div className="flex-1 overflow-auto">
         {renderContent()}
       </div>
 
