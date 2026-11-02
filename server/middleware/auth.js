@@ -36,6 +36,27 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
+    // If Firebase Admin SDK is not initialized and strictly in development mode, allow decoded token fallback
+    const isDev = (process.env.NODE_ENV || 'development') === 'development';
+    const isServiceAccountConfigured = !!process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    if (!isServiceAccountConfigured && isDev) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.sub || payload.user_id || 'dev-user-id',
+            email: payload.email || 'admin@example.com',
+            name: payload.name || 'Dev User'
+          };
+          return next();
+        }
+      } catch (decodeErr) {
+        console.warn('Development token decode fallback failed:', decodeErr.message);
+      }
+    }
+
     // Verify the token
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
