@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
@@ -793,6 +794,9 @@ export default function SalesDashboard() {
         </div>
 
         {/* Status Bar */}
+        {typeof window !== 'undefined' && window.location.search.includes('debugEmail=true') && (
+          <EmailNotificationViewer />
+        )}
         <div className="status-bar">
           <div className="status-item">
             <div className="status-dot" />
