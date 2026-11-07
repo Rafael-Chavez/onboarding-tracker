@@ -36,7 +36,26 @@ const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split('Bearer ')[1];
 
-    // Verify the token
+    // If Firebase Admin is not initialized with a service account in development,
+    // support unverified base64 payload decoding for local testing
+    if ((!admin.apps.length || !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) && (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV)) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+          req.user = {
+            uid: payload.uid || payload.user_id || payload.sub || 'dev-user',
+            email: payload.email || 'dev@example.com',
+            name: payload.name || 'Developer'
+          };
+          return next();
+        }
+      } catch (parseError) {
+        console.warn('Fallback token decoding failed in development:', parseError.message);
+      }
+    }
+
+    // Verify the token with Firebase Admin
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = {
       uid: decodedToken.uid,
