@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useTransition } from 'react'
+import { useState, useEffect, useMemo, useCallback, startTransition } from 'react'
 import { GoogleSheetsService } from './services/googleSheets'
 import { SupabaseService } from './services/supabase'
 import { debugOnboardingStats, debugLocalStorage } from './services/debugStats'
@@ -54,7 +54,6 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overviewDate, setOverviewDate] = useState(new Date())
   const [syncStatus, setSyncStatus] = useState({ isLoading: false, message: '', type: '' })
-  const [isPending, startTransition] = useTransition()
   const [autoSync, setAutoSync] = useState(() => loadFromStorage('autoSync', true))
 
   const fetchOnboardings = useCallback(async () => {
@@ -348,7 +347,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   const navigateOverviewMonth = useCallback((direction) => {
     startTransition(() => {
@@ -358,13 +357,13 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   const handleSelectDate = useCallback((date) => {
     startTransition(() => {
       setSelectedDate(date)
     })
-  }, [startTransition])
+  }, [])
 
   const getMonthlyCompletionStats = useCallback((date) => {
     const year = date.getFullYear()
@@ -468,19 +467,19 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   const handleSelectEmployeeHistory = useCallback((employeeId) => {
     startTransition(() => {
       setSelectedEmployeeHistory(employeeId)
     })
-  }, [startTransition])
+  }, [])
 
   const handleSetEmployeeHistoryViewMode = useCallback((mode) => {
     startTransition(() => {
       setEmployeeHistoryViewMode(mode)
     })
-  }, [startTransition])
+  }, [])
 
   const navigateEmployeeHistoryMonth = useCallback((direction) => {
     startTransition(() => {
@@ -490,7 +489,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
         return newDate
       })
     })
-  }, [startTransition])
+  }, [])
 
   // Optimized version with date caching
   const getEmployeeSessions = useCallback((employeeId, viewMode = 'all', monthDate = null) => {
@@ -687,7 +686,7 @@ function App({ onboardings: propOnboardings, pendingApprovals, onApprove, onReje
       </div>
 
       {/* Employee Session History Modal */}
-      <div className={isPending ? 'opacity-70 pointer-events-none transition-opacity' : 'transition-opacity'}>
+      <div>
       <EmployeeHistoryModal
         selectedEmployeeHistory={selectedEmployeeHistory}
         setSelectedEmployeeHistory={handleSelectEmployeeHistory}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { SupabaseService } from '../services/supabase';
 import { GoogleSheetsService } from '../services/googleSheets';
+import EmailNotificationViewer from './EmailNotificationViewer';
 import { Icons, iconProps } from './icons';
 
 const EMPLOYEES = ['All', 'Rafael', 'Jim', 'Marc', 'Steve', 'Erick'];
@@ -58,6 +59,12 @@ function AttendanceBadge({ status, lightMode }) {
 }
 
 export default function SalesDashboard() {
+  const [debugEmail] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('debugEmail') === 'true';
+    }
+    return false;
+  });
   const [onboardings, setOnboardings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -811,6 +818,8 @@ export default function SalesDashboard() {
           )}
         </div>
       </div>
+
+      {debugEmail && <EmailNotificationViewer />}
     </>
   );
 }

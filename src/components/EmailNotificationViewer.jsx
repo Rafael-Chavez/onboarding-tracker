@@ -46,10 +46,11 @@ export default function EmailNotificationViewer() {
 
     setStatusMessage({
       type: result.success ? 'success' : 'error',
-      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`
+      message: result.success ? 'Email sent successfully!' : `Failed: ${result.error}`,
+      previewUrl: result.previewUrl
     });
 
-    setTimeout(() => setStatusMessage(null), 5000);
+    setTimeout(() => setStatusMessage(null), 8000);
     loadNotifications();
   }, [loadNotifications]);
 
@@ -102,6 +103,18 @@ export default function EmailNotificationViewer() {
              <Icons.Info {...iconProps} />}
             <span>{statusMessage.message}</span>
           </div>
+          {statusMessage.previewUrl && (
+            <div className="mt-1 pt-1 border-t border-white/20 text-xs">
+              <a
+                href={statusMessage.previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline text-blue-100 hover:text-white font-medium"
+              >
+                View Sent Email (Ethereal Preview) ↗
+              </a>
+            </div>
+          )}
         </div>
       )}
 
@@ -209,7 +222,22 @@ export default function EmailNotificationViewer() {
                         <span className="text-white/40">To:</span>
                         <span className="text-cyan-300 font-mono">{notification.to}</span>
                       </div>
+                      {notification.previewUrl && (
+                        <a
+                          href={notification.previewUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-cyan-400 hover:text-cyan-300 underline font-semibold text-xs"
+                        >
+                          View Email ↗
+                        </a>
+                      )}
                     </div>
+                    {notification.details && (
+                      <div className="mt-2 text-white/50 text-[10px] font-mono">
+                        Accepted: {notification.details.accepted?.join(', ') || 'none'}
+                      </div>
+                    )}
                     {notification.error && (
                       <div className="mt-2 text-red-400 bg-red-500/10 p-2 rounded text-[10px] font-mono break-words border border-red-500/20">
                         Error: {notification.error}
